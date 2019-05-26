@@ -1,2 +1,2 @@
 # Pocket
-A high-level library for deep learning based on PyTorch
+A high-level deep learning library based on PyTorch
