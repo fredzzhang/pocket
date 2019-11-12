@@ -4,7 +4,7 @@ Compute the confusion matrix between multiple classes
 Written by Frederic Zhang
 Australian National Univeristy
 
-Last updated in May 2019
+Last updated in Jun. 2019
 """
 
 import os
@@ -12,13 +12,38 @@ import torch
 import pickle
 import matplotlib.pyplot as plt
 
+from ..utils import InferenceManager, load_pkl_from
+
 class ConfusionMatrix:
-    """
+    r"""
     Confusion matrix class, with dimension arranged in (Prediction, GroundTruth)
+    Note that negative class, i.e. samples that don't belong to any classes, is 
+    also included in the ground truth classes
 
     Arguments:
-       num_cls(int): number of target classes in the matrix
-       mode(string): evaluation mode, choose between 'FREQ' and 'MEAN'
+       num_cls(int, optional): Number of target classes in the matrix
+       mode(string, optional): Evaluation mode, choose between 'FREQ' and 'MEAN'
+
+    Example:
+        
+        >>> import torch
+        >>> from pocket.diagnose import ConfusionMatrix
+        >>> # Two samples belong to class 0, while both have higher scores for class 1
+        >>> # One sample belongs to class 1, and is predicted with a higher score for class 1
+        >>> # There are no negative samples
+        >>> output = torch.tensor([[0.1, 0.9], [0.2, 0.7], [0.4, 0.9]])
+        >>> labels = torch.tensor([[0., 1.], [1., 0.], [1., 0.]])
+        >>> cm = ConfusionMatrix(2)
+        >>> cm.push(output, labels)
+        >>> cm.cmatrix
+        tensor([[0., 0., 0.],
+                [2., 1., 0.]])
+        >>> cm = ConfusionMatrix(2, 'MEAN')
+        >>> cm.push(output, labels)
+        >>> cm.cmatrix
+        tensor([[0.3000, 0.1000, 0.0000],
+                [0.8000, 0.9000, 0.0000]])
+
     """
     def __init__(self, num_cls=0, mode='FREQ'):
         """Constructor method"""
@@ -26,11 +51,10 @@ class ConfusionMatrix:
            'There are only two options for mode: \'FREQ\' and \'MEAN\''
         self._num_cls = num_cls
         self._mode = mode
-        if mode == 'FREQ':
-            self._cmatrix = torch.zeros(num_cls, num_cls + 1)
-        else:
+        # Include negative class in ground truth
+        self._cmatrix = torch.zeros(num_cls, num_cls + 1)
+        if mode == 'MEAN':
             self._count = torch.zeros(num_cls + 1)
-            self._cmatrix = torch.zeros(num_cls, num_cls + 1)
 
     def _update_freq(self, out, labels):
         """Update the frequency of predictions"""
@@ -38,13 +62,14 @@ class ConfusionMatrix:
         gt_cls = torch.nonzero(labels)
         for ind in gt_cls:
             self._cmatrix[pred_cls[ind[0]], ind[1]] += 1
-        neg_samples = torch.nonzero(torch.sum(labels, 1) == 0)[0]
+        neg_samples = torch.nonzero(torch.sum(labels, 1) == 0)
         for ind in neg_samples:
             self._cmatrix[pred_cls[ind], -1] += 1
        
     def _update_mean(self, out, labels):
         """Update accumulated prediction scores"""
         gt_cls = torch.nonzero(labels)
+        self._cmatrix *= self._count
         for ind in gt_cls:
             self._cmatrix[:, ind[1]] += out[ind[0], :]
             self._count[ind[1]] += 1
@@ -52,15 +77,17 @@ class ConfusionMatrix:
         for ind in neg_samples:
             self._cmatrix[:, -1] += out[ind[0], :]
             self._count[-1] += 1
+        self._cmatrix /= self._count
+        self._cmatrix[torch.isnan(self._cmatrix)] = 0
 
     @property
     def cmatrix(self):
-        """Return the confusion matrix"""
+        """The confusion matrix"""
         return self._cmatrix
 
     @property
     def mode(self):
-        """Return the evaluation mode"""
+        """The evaluation mode"""
         return self._mode
 
     def reset(self):
@@ -111,9 +138,6 @@ class ConfusionMatrix:
 
     def save(self, cache_dir):
         """Save the confusion matrix into a pickle file"""
-        if self._mode == 'MEAN':
-            self._cmatrix /= torch.cat(
-                    [torch.unsqueeze(self._count, 0)] * self._num_cls, 0)
         with open(os.path.join(cache_dir, 'CMatrix_{}.pkl'.format(self._mode)), 'wb') as f:
             pickle.dump(self._cmatrix, f, pickle.HIGHEST_PROTOCOL)
 
@@ -154,21 +178,26 @@ class ConfusionMatrix:
 
 def compute_confusion_matrix(
         net,
+        labels,
         dataloader,
-        cache_dir,
-        class_of_interest,
         mode='FREQ',
         device='cpu',
-        formatter=lambda a: a):
+        cache_dir='./',
+        multi_gpu=False,
+        input_transform=lambda a: a,
+        output_transform=lambda a: torch.cat([b for b in a], 0)):
     """
+    Compute the confusion matrix
+
     Arguments:
 
     [REQUIRED ARGS]
         net(Module): network model
+        labels(Tensor[N, C]): Labels for all the data in loader, where N is the
+            number of samples and c is the number of classes. NOTE: the order of
+            the labels should be consistent with order of samples in dataloader
         dataloader(DataLoader): as the name suggests, 
-            batch output should have the format [input_1, ..., input_N, labels]
-        cache_path(string): path to save the confusion matrix
-        class_of_interest(Tensor): indices of classes in confusion matrix
+            batch output should have the format [input_1, ..., input_N]
 
     [OPTIONAL ARGS]
         mode(string): choose between 'FREQ' and 'MEAN'
@@ -177,33 +206,27 @@ def compute_confusion_matrix(
             'MEAN' - take the mean of output scores as entries in the matrix
         device(string): device to be used for network forward pass
             e.g. 'cpu', 'cuda:0'
-        formatter(function): handle of input data formater
-            default: lambda a:a -> keep the original format
+        multi_gpu((bool): If True, use all visible GPUs during forward pass
+        cache_dir(str): Directory to save cache
+        input_transform(callable): Transform applied on batch data
+        output_transform(callable): Transform applied on the collective output
     """
-    
-    # declare primary device
-    dev = torch.device(device)
-    net = net.to(dev)
-    # initialize the confusion matrix
-    coi = class_of_interest.long()
-    cmatrix = ConfusionMatrix(len(coi), mode)
+    if os.path.exists(os.path.join(cache_dir, 'output.pkl')):
+        output = load_pkl_from(os.path.join(cache_dir, 'output.pkl'))
+    else:
+        inference = InferenceManager(
+                net,
+                dataloader,
+                device,
+                cache_dir,
+                multi_gpu,
+                True,
+                100,
+                input_transform)
+        output = inference()
+    output = output_transform(output)
 
-    for dtuple in dataloader:
-        # use data wrapper to format the input
-        dtuple = formatter(dtuple)
-        labels = dtuple[-1]
-        # relocate tensor to designated device
-        dtuple = [item.float().to(dev) for item in dtuple[:-1]]
-        # forward pass
-        with torch.no_grad():
-            if len(dtuple) == 1:
-                out = net(dtuple[0]).cpu()
-            else:
-                out = net(*dtuple).cpu()
-        # update the confusion matrix
-        cmatrix.push(out[:, coi], labels[:, coi])
-
-    # save the matrix
-    cmatrix.save(cache_dir)
+    cmatrix = ConfusionMatrix(output.shape[1], mode)
+    cmatrix.push(output, labels)
 
     return cmatrix

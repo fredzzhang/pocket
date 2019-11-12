@@ -1,13 +1,15 @@
 """
-Add ${POCKET} to Python system path
+Import packages
 
 Written by Frederic Zhang
 Australian National University
 
-Lasted updated in Mar. 2019
+Lasted updated in Jun. 2019
 """
 
-import os
-import sys
-
-sys.path.insert(0, os.environ['POCKET'])
+from . import cfgs
+from . import yacs
+from . import data
+from . import utils
+from . import models
+from . import diagnose

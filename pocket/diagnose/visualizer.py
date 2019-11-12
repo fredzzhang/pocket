@@ -4,7 +4,7 @@ Classes used for visualization purposes
 Written by Frederic Zhang
 Australian National University
 
-Last updated in Apr. 2019
+Last updated in Jul. 2019
 """
 
 import os
@@ -12,6 +12,55 @@ import cv2
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+from ..cfgs import load_hico_det_cfgs
+
+cfg = load_hico_det_cfgs()
+
+class APVisualizer:
+    """
+    """
+    def __init__(self, src_train, src_test):
+        self._perf_train = np.loadtxt(src_train)
+        self._perf_test = np.loadtxt(src_test)
+        self._colours = ['r', 'g', 'b', 'c', 'm']
+        assert len(self._perf_train) == len(self._perf_test),\
+                'The number of classes is not consistent in training and test set'
+
+    def _load_segments(self):
+        anno_per_hoi = np.loadtxt(os.path.join(cfg.METADIR, 'per_hoi_anno_train.txt'))
+        ind_1 = np.where(anno_per_hoi == 1)[0]
+        ind_5 = np.where((anno_per_hoi > 1) & (anno_per_hoi <= 5))[0]
+        ind_15 = np.where((anno_per_hoi > 5) & (anno_per_hoi <= 15))[0]
+        ind_50 = np.where((anno_per_hoi > 15) & (anno_per_hoi <= 50))[0]
+        ind_150 = np.where((anno_per_hoi > 50) & (anno_per_hoi <= 150))[0]
+        ind_400 = np.where((anno_per_hoi > 150) & (anno_per_hoi <= 400))[0]
+        ind_inf = np.where(anno_per_hoi > 400)[0]
+        return ind_1, ind_5, ind_15, ind_50, ind_150, ind_400, ind_inf
+
+    def show(self):
+        prop_cycle = plt.rcParams['axes.prop_cycle']
+        colours = prop_cycle.by_key()['color']
+        legend = []
+
+        labels = ['1', '(1,5]', '(5,15]', '(15,50]', '(50,150]', '(150,400]', '(400,)']
+
+        inds = self._load_segments()
+        for i, seg in enumerate(inds):
+            for j in seg:
+                plt.plot([j, j], [self._perf_test[j], self._perf_train[j]], colours[i])
+            plt.plot(seg, self._perf_test[seg],
+                    color=colours[i], marker='o', markersize=5, fillstyle='none', linestyle='none')
+            plt.plot(seg, self._perf_train[seg],
+                    color=colours[i], marker='s', markersize=5, fillstyle='none', linestyle='none')
+            legend.append(mpatches.Patch(color=colours[i], label=labels[i]))
+
+        plt.legend(handles=legend)
+        plt.xlabel('Class ID')
+        plt.ylabel('AP')
+        plt.title('Average precision for HOI classes on training and test set')
+        plt.show()
 
 class LearningCurveVisualizer:
     """
@@ -201,27 +250,37 @@ class NetVisualizer(dict):
     Network parameter visualizer
 
     Arguments:
+        state_dict(OrderedDict): State dict of a pytorch model
         pt_path(str): path of a PyTorch model, typically ends with .pt
         ckpt_path(str): path of a checkpoint file, with field 'model_state_dict'
+
+    Example:
+        
+        >>> from torch import nn
+        >>> from pocket.diagnose import NetVisualizer
+        >>> net = nn.Sequential(nn.Linear(5, 10), nn.ReLU(), nn.Linear(10, 20))
+        >>> v = NetVisualizer(net.state_dict())
+        >>> len(v)
+        4
+        >>> v.keys()
+        dict_keys(['0.weight', '0.bias', '2.weight', '2.bias'])
+        >>> v['0.weight'].show()
     """
-    def __init__(self, pt_path=None, ckpt_path=None):
-        if pt_path is not None:
+    def __init__(self, state_dict=None, pt_path=None, ckpt_path=None):
+        if state_dict is not None:
+            self._param_dict = state_dict
+        elif pt_path is not None:
             self._param_dict = torch.load(pt_path)
         elif ckpt_path is not None:
             self._param_dict = torch.load(ckpt_path)['model_state_dict']
         else:
-            raise ValueError('No valid path given')
+            raise ValueError('No valid arguments given')
         for key in self._param_dict:
             self[key] = ParamVisualizer(self._param_dict[key])
 
     def __len__(self):
         """Return the number of parameter blocks"""
         return len(self._param_dict)
-
-    @property
-    def keys(self):
-        """Return the name of parameter blocks"""
-        return self._param_dict.keys()
 
 class ImageVisualizer:
     """

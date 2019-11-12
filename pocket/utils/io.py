@@ -33,6 +33,14 @@ class Log:
         self._path = path
         self._mode = mode
 
+    def __repr__(self):
+        reprstr = self.__class__.__name__ + '('
+        reprstr += repr(self._path)
+        reprstr += ', '
+        reprstr += repr(self._mode)
+        reprstr += ')'
+        return reprstr
+
     @property
     def path(self):
         """Return the path of the log"""

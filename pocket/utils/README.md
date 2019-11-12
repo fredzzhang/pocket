@@ -1,4 +1,4 @@
-## __`CLASS`__ pocket.utils.basic.NetTrainer
+## __`CLASS`__ lib.utils.basic.NetTrainer
 
 Network trainer class
 
@@ -17,7 +17,7 @@ Network trainer class
 * *val_loader(iterable, optional)*: dataloader for validation set, preferably as DataLoader type, with batch output in the format \[INPUT_1, ..., INPUT_N, LABELS\] (default: __*None*__)
 * *lr_scheduler(bool, optional)*: use learning rate scheduler (default: __*True*__)
 * *sched_params(dict, optional)*: learning rate scheduler parameter dict (default: __*{'patience':2, 'min_lr':1e-4}*__)
-* *formatter(handle, optional)*: a function handle used to format batch data, (default: __*lambda a: a*__)
+* *input_transform(handle, optional)*: a function handle used to format batch data, (default: __*lambda a: a*__)
 
 `Properties:`
 * *step(int)*: current step number, implemented with setter
@@ -26,7 +26,7 @@ Network trainer class
 `Methods:`
 * *train(nepoch)*: train the network with a specified number of epochs
 
-## __`CLASS`__ pocket.utils.basic.NetTester
+## __`CLASS`__ lib.utils.basic.NetTester
 
 Network tester class
 
@@ -36,7 +36,7 @@ Network tester class
 * *device(str, optional)*: the primary device used in training (default: __*'cpu'*__)
 * *print_interval(int, optional)*: number of steps to log progress (default: __*500*__)
 * *cache_dir(str optional)*: directory to save cache and test log (default: __*'./cache'*__)
-* *formatter(handle, optional)*: a function handle used to format batch data, (default: __*lambda a: a*__)
+* *input_transform(handle, optional)*: a function handle used to format batch data, (default: __*lambda a: a*__)
 
 `Properties:`
 * *metric(str)*: the evaluation metric
@@ -54,7 +54,7 @@ Network tester class
         * detdb(ndarray, optional): detection results arranged in (N, M) array of objects, where N is the number of images and M is the number of classes. Each entry should be an ndarray of box pairs in the format \[H_x1, H_y1, H_x2, H_y2, O_x1, O_y1, O_x2, O_y2, Score\] (default: __*None*__)
 * *eval()*: evaluate the network based on the specified metric
 
-## __`CLASS`__ pocket.utils.loss.BCELossForStratifiedBatch
+## __`CLASS`__ lib.utils.loss.BCELossForStratifiedBatch
 
 Binary cross entropy loss, modified to mask out co-occurring classes for multi-label classification problems. When applying stratified sampling, co-occurring classes could disrupt the desired balance between the number of samples for different classes. To resolve this problem, mask out the losses for those co-occurring classes, except the actual designated class.  
 
@@ -65,9 +65,9 @@ Binary cross entropy loss, modified to mask out co-occurring classes for multi-l
     * *cfg.NUM_POS_SAMPLES(int)*: number of samples to take from each positive class
     * *cfg.NUM_NEG_SAMPLES(int)*: number of samples to take from the negative class
 
-## __`CLASS`__ pocket.utils.loss.BCEWithLogitsLossForStratifiedBatch
+## __`CLASS`__ lib.utils.loss.BCEWithLogitsLossForStratifiedBatch
 
-Binary cross entropy loss coupled with sigmoid function, modified to mask out co-occurring classes for multi-label classification problems. Child class of _pocket.utils.loss.BCELossForStratifiedBatch_
+Binary cross entropy loss coupled with sigmoid function, modified to mask out co-occurring classes for multi-label classification problems. Child class of _lib.utils.loss.BCELossForStratifiedBatch_
 
 `Parameters:`
 * *cfg(CfgNode)*: configuration class with the following attributes
@@ -76,7 +76,7 @@ Binary cross entropy loss coupled with sigmoid function, modified to mask out co
     * *cfg.NUM_POS_SAMPLES(int)*: number of samples to take from each positive class
     * *cfg.NUM_NEG_SAMPLES(int)*: number of samples to take from the negative class
 
-## __`CLASS`__ pocket.utils.io.Log
+## __`CLASS`__ lib.utils.io.Log
 
 Logger class
 
@@ -92,9 +92,9 @@ Logger class
 * *write(descpt)*: write to file given a description string
 * *time()*: print time to log
 
-## __`CLASS`__ pocket.utils.io.TrainLog
+## __`CLASS`__ lib.utils.io.TrainLog
 
-Logger during network training. Child class of _pocket.utils.io.Log_
+Logger during network training. Child class of _lib.utils.io.Log_
 
 `Parameters:`
 * *path(str)*: path of the file to write to
