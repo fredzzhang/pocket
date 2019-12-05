@@ -9,5 +9,5 @@ Last updated in Sept. 2019
 
 from .io import *
 from .loss import *
+from .meters import *
 from .engines import *
-

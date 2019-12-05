@@ -5,7 +5,7 @@
 # install dependencies
 conda install jupyter pyyaml
 conda install -c anaconda cloudpickle
-conda install pytorch torchvision
+conda install pytorch torchvision -c pytorch
 
 # use pip to install opencv
 # otherwise cv2.imshow will not work
