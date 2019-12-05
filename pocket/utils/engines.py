@@ -70,7 +70,9 @@ class LearningEngine(State):
             },
             optim_state_dict=None,
             verbal=True,
-            print_interval=100):
+            print_interval=100,
+            cache_dir='./checkpoints'
+            ):
 
         super(LearningEngine, self).__init__()
 
@@ -81,11 +83,12 @@ class LearningEngine(State):
         self._trainloader = trainloader
         self._verbal = verbal
         self._print_interval = print_interval
+        self._cache_dir = cache_dir
 
         # Set flags for GPU
         torch.backends.cudnn.benchmark = trainloader.pin_memory = torch.cuda.is_available()
 
-        self._state.net = torch.nn.DataParallel(net).to(self._device) \
+        self._state.net = torch.nn.DataParallel(net).to(self._device) if self._multigpu \
             else net.to(self._device)
         self._state.optimizer = torch.optim.SGD(self._state.net.parameters(), **optim_params) if optim == 'SGD' \
             else torch.optim.Adam(self._state.net.parameters(), **optim_params)
@@ -162,6 +165,8 @@ class LearningEngine(State):
         self._state.running_loss.reset()
 
     def _save_checkpoint(self):
+        if not os.path.exists(self._cache_dir):
+            os.mkdir(self._cache_dir)
         # Make a copy of the network and relocate to cpu
         net_copy = copy.deepcopy(self._state.net.module).cpu() if self._multigpu \
             else copy.deepcopy(self._state.net).cpu()
@@ -176,5 +181,5 @@ class LearningEngine(State):
             'epoch': self._state.epoch,
             'model_state_dict': net_copy.state_dict(),
             'optim_state_dict': optim_copy.state_dict()
-            }, os.path.join(self._state.cache_dir, 'ckpt_{:05d}_{:02d}.pt'.\
+            }, os.path.join(self._cache_dir, 'ckpt_{:05d}_{:02d}.pt'.\
                     format(self._state.iteration, self._state.epoch)))
