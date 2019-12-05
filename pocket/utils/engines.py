@@ -14,7 +14,6 @@ import pickle
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
-import torch.utils.data
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 
@@ -83,7 +82,6 @@ class BubbleTrainer(Engine):
             dataset,
             batch_size,
             update_rule='multiclass',
-            replenish_perc=0.5,
             shuffle=False,
             num_workers=4,
             cache_dir=None,
@@ -132,11 +130,10 @@ class BubbleTrainer(Engine):
         self._state.multi_gpu = multi_gpu
         self._state.cache_dir = cache_dir
         self._state.dataset = dataset
-        self._state.replenish_perc = replenish_perc
         self._state.input_transform = input_transform
 
         if update_rule == 'multiclass':
-            self._update_method = self._update_multiclass_a
+            self._update_method = self._update_multiclass
         elif update_rule == 'multilabel':
             self._update_method = self._update_multilabel_gnorm
         else:
@@ -201,9 +198,8 @@ class BubbleTrainer(Engine):
 
     def _update_multilabel_gnorm(self, logits, labels):
         gnorm = torch.abs(logits - labels.to(logits.device)).sum(1)
-        order = torch.argsort(gnorm)
-        thresh = gnorm[order[:round(len(order) * 0.2)]].mean().item()
-        return np.where(gnorm.cpu().numpy() > thresh)[0]
+        order = torch.argsort(gnorm).cpu().numpy()
+        return order[round(len(order) * 0.2):]
 
     def _update_multiclass_a(self, logits, labels):
         """
@@ -213,7 +209,7 @@ class BubbleTrainer(Engine):
         """
         b_labels = torch.zeros(logits.shape)
         b_labels[torch.linspace(0, len(labels) - 1, len(labels)).long(), labels.long()] = 1
-        return self._update_multilabel_gnorm(logits, b_labels)
+        return self._update_multilabel_merge_rand(logits, b_labels)
 
     def _update_multiclass(self, logits, labels):
         pred = torch.argmax(logits, 1).cpu()
@@ -221,7 +217,10 @@ class BubbleTrainer(Engine):
         return subset[np.random.permutation(len(subset))]
 
     def reset(self):
-        self._state.subset = np.random.permutation(len(dataset))
+        self._state.subset = np.linspace(
+                0,
+                len(self._state.dataset) - 1,
+                len(self._state.dataset)).astype(np.int32)
 
     def __call__(self, nepoch):
 
@@ -239,8 +238,16 @@ class BubbleTrainer(Engine):
                     self._state.step))
 
             self._state.net.train()
+#            if self._state.multi_gpu:
+#                self._state.net.module.activate_bn()
+#            else:
+#                self._state.net.activate_bn()
+
+#            if self._state.epoch % 2:
             if 1:
-                sampler = torch.utils.data.SubsetRandomSampler(self._state.subset)
+                # generate a random permutation array
+#                idx_perm = np.random.permutation(len(self._state.dataset))
+                sampler = IndexSequentialSampler(self._state.subset)
 
                 dataloader = torch.utils.data.DataLoader(
                         self._state.dataset,
@@ -258,20 +265,17 @@ class BubbleTrainer(Engine):
                     dtuple = [item.to(self._state.device) for item in dtuple]
                     # forward pass
                     out = self._state.net(*dtuple[:-1])
-                    # do not update parameters for small final batch
-                    if out.shape[0] > 0.4 * self._state.batch_size:
-                        # compute loss
-                        loss = self._state.criterion(out, dtuple[-1])
-                        self._state.optimizer.zero_grad()
-                        # back propogation
-                        loss.backward()
-                        # update weights
-                        self._state.optimizer.step()
+                    # compute loss
+                    loss = self._state.criterion(out, dtuple[-1])
+                    self._state.optimizer.zero_grad()
+                    # back propogation
+                    loss.backward()
+                    # update weights
+                    self._state.optimizer.step()
 
-                        self._state.step += 1
+                    self._state.step += 1
 
-                        acc_loss += loss.item()
-
+                    acc_loss += loss.item()
                     logits.append(out.detach())
                     labels.append(dtuple[-1].cpu())
 
@@ -281,15 +285,7 @@ class BubbleTrainer(Engine):
                 labels = torch.cat(labels, 0)
                 # update subset
                 self._state.subset = self._state.subset[self._update_method(logits, labels)]
-                # replenish if subset is too small
-                n = round(self._state.replenish_perc * len(self._state.dataset))\
-                        - len(self._state.subset)
-                if n > 0:
-                    perm = np.random.permutation(len(self._state.dataset))
-                    self._state.subset = np.hstack([
-                        self._state.subset,
-                        np.where(np.isin(perm, self._state.subset) == 0)[0][:n]
-                        ])
+
 ###
 #                logits_n = []
 #                labels_n = []
