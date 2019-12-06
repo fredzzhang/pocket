@@ -87,8 +87,8 @@ class LearningEngine(State):
             optim_state_dict=None,
             lr_scheduler=False,
             lr_sched_params={
-                'milestones'=[50, 100],
-                'gamma'=0.1
+                'milestones': [50,100],
+                'gamma': 0.1
             },
             verbal=True,
             print_interval=100,
@@ -179,10 +179,9 @@ class LearningEngine(State):
         self._state.optimizer.step()
 
     def _print_statistics(self):
-        print('Epoch: [{}][{}]\t'
-            'Iterations {:.3f}s ({:.3f}s)\t'
-            'Dataloading {:.3f}s ({:.3f}s)\t'
-            'Loss {:.4f} ({:.4f})'.format(
+        print('[Ep.][Iter.]: [{}][{}] | '
+            'Loss: {:.4f}) | '
+            'Time[Data][Iter.]: [{:.4f}({:.4f})][{:.4f}({:.4f})]'.format(
                 self._state.epoch, self._state.iteration,
                 self._state.t_iteration.sum(), self._state.t_iteration.mean(),
                 self._state.t_data.sum(), self._state.t_data.mean(),
@@ -276,7 +275,7 @@ class MultiClassClassificationEngine(LearningEngine):
         total = 0
         running_loss = NumericalMeter()
         timestamp = time.time()
-        for batch in self._train_loader:
+        for batch in self._val_loader:
             batch = [item.to(self._device) for item in batch]
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
@@ -287,7 +286,7 @@ class MultiClassClassificationEngine(LearningEngine):
             total += len(pred)
         elapsed = time.time() - timestamp
 
-        print('\n>>>> Validation\n'
+        print('>>>> Validation\n'
             'Epoch: {} | Acc.: {:.4f}[{}/{}] | Loss: {:.4f} | Time: {:.2f}s\n'.format(
                 self._state.epoch, correct / total, correct, total,
                 running_loss.mean(), elapsed
@@ -303,7 +302,7 @@ class MultiClassClassificationEngine(LearningEngine):
     def _on_end_epoch(self):
         super(MultiClassClassificationEngine, self)._on_end_epoch()
         print('\n>>>> Training\n'
-            'Epoch: {} | Acc.: {:.4f}[{}/{}]\n'.format(
+            'Epoch: {} | Acc.: {:.4f}[{}/{}]'.format(
                 self._state.epoch,
                 self._state.correct / self._state.total, self._state.correct, self._state.total
             ))
@@ -312,6 +311,6 @@ class MultiClassClassificationEngine(LearningEngine):
 
     def _on_end_iteration(self):
         super(MultiClassClassificationEngine, self)._on_end_iteration()
-        pred = torch.argmax(self._output, 1)
+        pred = torch.argmax(self._state.output, 1)
         self._state.correct += torch.eq(pred, self._state.target).sum().item()
         self._state.total += len(pred)
