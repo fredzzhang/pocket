@@ -39,6 +39,10 @@ class Meter:
         """Append an element"""
         self._list.append(x)
 
+    def sum(self):
+        """Return the sum of all elements"""
+        raise NotImplementedError
+
     def mean(self):
         """Return the mean"""
         raise NotImplementedError
@@ -68,6 +72,9 @@ class NumericalMeter(Meter):
             super(NumericalMeter, self).append(x)
         else:
             raise TypeError('Given element \'{}\' is not a numeral'.format(x))
+
+    def sum(self):
+        return sum(self._list)
 
     def mean(self):
         return sum(self._list) / len(self._list)
