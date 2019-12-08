@@ -53,7 +53,7 @@ class State:
             raise KeyError('Inexistent key {}'.format(key))
 
 class LearningEngine(State):
-    """
+    r"""
     Base class for learning engine
 
     Arguments:
@@ -180,12 +180,13 @@ class LearningEngine(State):
 
     def _print_statistics(self):
         print('[Ep.][Iter.]: [{}][{}] | '
-            'Loss: {:.4f}) | '
-            'Time[Data][Iter.]: [{:.4f}({:.4f})][{:.4f}({:.4f})]'.format(
-                self._state.epoch, self._state.iteration,
-                self._state.t_iteration.sum(), self._state.t_iteration.mean(),
-                self._state.t_data.sum(), self._state.t_data.mean(),
-                self._state.running_loss.mean()))
+                'Loss: {:.4f} | '
+                'Time[Data][Iter.]: [{:.4f}({:.4f})][{:.4f}({:.4f})]'.format(
+                    self._state.epoch, self._state.iteration,
+                    self._state.running_loss.mean(),
+                    self._state.t_iteration.sum(), self._state.t_iteration.mean(),
+                    self._state.t_data.sum(), self._state.t_data.mean())
+            )
         self._state.t_iteration.reset()
         self._state.t_data.reset()
         self._state.running_loss.reset()
@@ -211,7 +212,7 @@ class LearningEngine(State):
                     format(self._state.iteration, self._state.epoch)))
 
 class MultiClassClassificationEngine(LearningEngine):
-    """
+    r"""
     Learning engine for multi-class classification problems
 
     Arguments:
@@ -245,19 +246,27 @@ class MultiClassClassificationEngine(LearningEngine):
         >>> # Select loss function
         >>> criterion = torch.nn.CrossEntropyLoss()
         >>> # Prepare dataset
-        >>> transform = transforms.Compose([
+        >>> transform_train = transforms.Compose([
         ... transforms.RandomCrop(32, padding=4),
         ... transforms.RandomHorizontalFlip(),
+        ... transforms.ToTensor(),
+        ... transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+        >>> transform_test = transforms.Compose([
         ... transforms.ToTensor(),
         ... transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
         >>> trainset = torchvision.datasets.CIFAR10(root='./data',
         ... train=True,
         ... download=True,
-        ... transform=transform)
+        ... transform=transform_train)
+        >>> testset = torchvision.datasets.CIFAR10(root='./data',
+        ... train=False,
+        ... download=True,
+        ... transform=transform_test)
         >>> train_loader = torch.utils.data.DataLoader(trainset, 128, True, num_workers=4)
+        >>> test_loader = torch.utils.data.DataLoader(testset, 100, False, num_workers=4)
         >>> # Intialize learning engine and start training
-        >>> engine = MultiClassClassicationEngine(net, criterion, train_loader)
-        >>> engine(1)
+        >>> engine = MultiClassClassicationEngine(net, criterion, train_loader, val_loader=test_loader)
+        >>> engine(10)
     """
     def __init__(self,
             net,
@@ -267,6 +276,7 @@ class MultiClassClassificationEngine(LearningEngine):
             **kwargs):
 
         super(MultiClassClassificationEngine, self).__init__(net, criterion, train_loader, **kwargs)
+        val_loader.pin_memory = torch.cuda.is_available()
         self._val_loader = val_loader
            
     def _validate(self):
@@ -286,7 +296,7 @@ class MultiClassClassificationEngine(LearningEngine):
             total += len(pred)
         elapsed = time.time() - timestamp
 
-        print('>>>> Validation\n'
+        print('=> Validation\n'
             'Epoch: {} | Acc.: {:.4f}[{}/{}] | Loss: {:.4f} | Time: {:.2f}s\n'.format(
                 self._state.epoch, correct / total, correct, total,
                 running_loss.mean(), elapsed
@@ -301,7 +311,7 @@ class MultiClassClassificationEngine(LearningEngine):
  
     def _on_end_epoch(self):
         super(MultiClassClassificationEngine, self)._on_end_epoch()
-        print('\n>>>> Training\n'
+        print('\n=> Training\n'
             'Epoch: {} | Acc.: {:.4f}[{}/{}]'.format(
                 self._state.epoch,
                 self._state.correct / self._state.total, self._state.correct, self._state.total
