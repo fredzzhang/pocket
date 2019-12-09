@@ -135,7 +135,7 @@ class LearningEngine(State):
 
     def __call__(self, n):
         # Train for a specified number of epochs
-        for ep in range(n):
+        for _ in range(n):
             self._on_start_epoch()
             timestamp = time.time()
             for batch in self._train_loader:
@@ -237,36 +237,52 @@ class MultiClassClassificationEngine(LearningEngine):
 
     Example:
 
+        >>> # An example on MNIST handwritten digits recognition
         >>> import torch
-        >>> import torchvision
-        >>> import torchvision.transforms as transforms
-        >>> from pocket.utils import MultiClassClassicationEngine
-        >>> # Intialize network
-        >>> net = torchvision.models.resnet18()
-        >>> # Select loss function
+        >>> from torchvision import datasets, transforms
+        >>> from pocket.models import LeNet
+        >>> from pocket.utils import MultiClassClassificationEngine
+        >>> # Fix random seed
+        >>> torch.manual_seed(0)
+        >>> # Initialize network
+        >>> net = LeNet()
+        >>> # Initialize loss function
         >>> criterion = torch.nn.CrossEntropyLoss()
         >>> # Prepare dataset
-        >>> transform_train = transforms.Compose([
-        ... transforms.RandomCrop(32, padding=4),
-        ... transforms.RandomHorizontalFlip(),
-        ... transforms.ToTensor(),
-        ... transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
-        >>> transform_test = transforms.Compose([
-        ... transforms.ToTensor(),
-        ... transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
-        >>> trainset = torchvision.datasets.CIFAR10(root='./data',
-        ... train=True,
-        ... download=True,
-        ... transform=transform_train)
-        >>> testset = torchvision.datasets.CIFAR10(root='./data',
-        ... train=False,
-        ... download=True,
-        ... transform=transform_test)
-        >>> train_loader = torch.utils.data.DataLoader(trainset, 128, True, num_workers=4)
-        >>> test_loader = torch.utils.data.DataLoader(testset, 100, False, num_workers=4)
+        >>> train_loader = torch.utils.data.DataLoader(
+        ...     datasets.MNIST('./data', train=True, download=True,
+        ...         transform=transforms.Compose([
+        ...             transforms.ToTensor(),
+        ...             transforms.Normalize((0.1307,), (0.3081,))])
+        ...         ),
+        ...     batch_size=128, shuffle=True)
+        >>> test_loader = torch.utils.data.DataLoader(
+        ...     datasets.MNIST('./data', train=False, 
+        ...             transform=transforms.Compose([
+        ...                 transforms.ToTensor(),
+        ...                 transforms.Normalize((0.1307,), (0.3081,))])
+        ...         ),
+        ...     batch_size=100, shuffle=False)
         >>> # Intialize learning engine and start training
-        >>> engine = MultiClassClassicationEngine(net, criterion, train_loader, val_loader=test_loader)
-        >>> engine(10)
+        >>> engine = MultiClassClassificationEngine(net, criterion, train_loader,
+        ...     val_loader=test_loader)
+        >>> # Train the network for one epoch with default optimizer option
+        >>> # Checkpoints will be saved under ./checkpoints by default, containing 
+        >>> # saved model parameters, optimizer statistics and progress
+        >>> engine(1)
+
+        => Validation
+        Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 5.24s
+
+        [Ep.][Iter.]: [1][100] | Loss: 1.1665 | Time[Data][Iter.]: [466.5847s][466.5847s]
+        [Ep.][Iter.]: [1][200] | Loss: 2.2773 | Time[Data][Iter.]: [0.2861s][2.6689s]
+        [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data][Iter.]: [0.2581s][2.5305s]
+        [Ep.][Iter.]: [1][400] | Loss: 2.0143 | Time[Data][Iter.]: [0.2986s][2.6412s]
+
+        => Training
+        Epoch: 1 | Acc.: 0.3181[19087/60000]
+        => Validation
+        Epoch: 1 | Acc.: 0.7950[7950/10000] | Loss: 1.0872 | Time: 2.18s
     """
     def __init__(self,
             net,
