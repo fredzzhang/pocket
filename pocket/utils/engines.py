@@ -181,11 +181,11 @@ class LearningEngine(State):
     def _print_statistics(self):
         print('[Ep.][Iter.]: [{}][{}] | '
                 'Loss: {:.4f} | '
-                'Time[Data][Iter.]: [{:.4f}({:.4f})][{:.4f}({:.4f})]'.format(
+                'Time[Data][Iter.]: [{:.4f}s][{:.4f}s]'.format(
                     self._state.epoch, self._state.iteration,
                     self._state.running_loss.mean(),
-                    self._state.t_iteration.sum(), self._state.t_iteration.mean(),
-                    self._state.t_data.sum(), self._state.t_data.mean())
+                    self._state.t_iteration.sum(),
+                    self._state.t_data.sum())
             )
         self._state.t_iteration.reset()
         self._state.t_data.reset()
