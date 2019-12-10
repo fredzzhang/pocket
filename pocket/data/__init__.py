@@ -1,11 +1,12 @@
 """
 Import package modules
 
-Written by Frederic Zhang
-Australian National University
+Fred Zhang <frederic.zhang@anu.edu.au>
 
-Last updated in Jun. 2019
+The Australian National University
+Australian Centre for Robotic Vision
 """
 
 from .base import *
+from .hicodet import HICODet
 from .samplers import *
