@@ -51,7 +51,7 @@ class HICODet(ImageDataset):
             ...
         ]
         """
-        return self._class_corr
+        return self._class_corr.copy()
 
     @staticmethod
     def load_annotation_and_metadata(f):
