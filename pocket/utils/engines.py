@@ -1,19 +1,15 @@
 """
 Learning engines under the PyTorch framework
 
-Written by Frederic Zhang
-Australian National University
+Fred Zhang <frederic.zhang@anu.edu.au>
 
-Last updated in Dec. 2019
+The Australian National University
+Australian Centre for Robotic Vision
 """
 
 import os
 import copy
 import time
-import pickle
-import numpy as np
-import matplotlib.pyplot as plt
-
 import torch
 from torch.utils.data import DataLoader
 
