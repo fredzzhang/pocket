@@ -1,13 +1,12 @@
 """
 Import packages
 
-Written by Frederic Zhang
-Australian National University
+Fred Zhang <frederic.zhang@anu.edu.au>
 
-Lasted updated in Jun. 2019
+The Australian National University
+Australian Centre for Robotic Vision
 """
 
 from . import data
 from . import utils
 from . import models
-from . import diagnose
