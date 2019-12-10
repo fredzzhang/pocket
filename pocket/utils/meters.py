@@ -59,16 +59,16 @@ class NumericalMeter(Meter):
     """
     Meter class with numerals as elements
     """
-    __valid__ = [int, float]
+    VALID_TYPES = [int, float]
     
     def __init__(self, x=[]):
         for item in x:
-            assert type(item) in self.__valid__, \
+            assert type(item) in self.VALID_TYPES, \
                 'Given list contains non-numerical element {}'.format(item)
         super(NumericalMeter, self).__init__(x)
 
     def append(self, x):
-        if type(x) in self.__valid__:
+        if type(x) in self.VALID_TYPES:
             super(NumericalMeter, self).append(x)
         else:
             raise TypeError('Given element \'{}\' is not a numeral'.format(x))
