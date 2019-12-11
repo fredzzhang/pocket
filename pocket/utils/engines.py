@@ -37,7 +37,7 @@ class State:
         if key in self._state:
             return self._state[key]
         else:
-            raise KeyError('Inexistent key {}'.format(key))
+            raise KeyError("Inexistent key {}".format(key))
 
     def update_state_key(self, key, val):
         """Override a specific key in the state"""
@@ -46,7 +46,7 @@ class State:
                 'Attemp to override state key \'{}\' of type {} by type {}'.format(key, type(self._state[key]), type(val))
             self._state[key] = val
         else:
-            raise KeyError('Inexistent key {}'.format(key))
+            raise KeyError("Inexistent key {}".format(key))
 
 class LearningEngine(State):
     r"""
@@ -175,9 +175,9 @@ class LearningEngine(State):
         self._state.optimizer.step()
 
     def _print_statistics(self):
-        print('[Ep.][Iter.]: [{}][{}] | '
-                'Loss: {:.4f} | '
-                'Time[Data][Iter.]: [{:.4f}s][{:.4f}s]'.format(
+        print("[Ep.][Iter.]: [{}][{}] | "
+                "Loss: {:.4f} | "
+                "Time[Data][Iter.]: [{:.4f}s][{:.4f}s]".format(
                     self._state.epoch, self._state.iteration,
                     self._state.running_loss.mean(),
                     self._state.t_iteration.sum(),
@@ -287,7 +287,7 @@ class MultiClassClassificationEngine(LearningEngine):
             val_loader=None,
             **kwargs):
 
-        super(MultiClassClassificationEngine, self).__init__(net, criterion, train_loader, **kwargs)
+        super().__init__(net, criterion, train_loader, **kwargs)
         val_loader.pin_memory = torch.cuda.is_available()
         self._val_loader = val_loader
            
@@ -308,8 +308,8 @@ class MultiClassClassificationEngine(LearningEngine):
             total += len(pred)
         elapsed = time.time() - timestamp
 
-        print('=> Validation\n'
-            'Epoch: {} | Acc.: {:.4f}[{}/{}] | Loss: {:.4f} | Time: {:.2f}s\n'.format(
+        print("=> Validation\n"
+            "Epoch: {} | Acc.: {:.4f}[{}/{}] | Loss: {:.4f} | Time: {:.2f}s\n".format(
                 self._state.epoch, correct / total, correct, total,
                 running_loss.mean(), elapsed
             ))
@@ -317,14 +317,14 @@ class MultiClassClassificationEngine(LearningEngine):
     def _on_start_epoch(self):
         if self._state.epoch == 0 and self._val_loader is not None:
             self._validate()
-        super(MultiClassClassificationEngine, self)._on_start_epoch()
+        super()._on_start_epoch()
         self._state.correct = 0
         self._state.total = 0
  
     def _on_end_epoch(self):
-        super(MultiClassClassificationEngine, self)._on_end_epoch()
-        print('\n=> Training\n'
-            'Epoch: {} | Acc.: {:.4f}[{}/{}]'.format(
+        super()._on_end_epoch()
+        print("\n=> Training\n"
+            "Epoch: {} | Acc.: {:.4f}[{}/{}]".format(
                 self._state.epoch,
                 self._state.correct / self._state.total, self._state.correct, self._state.total
             ))
@@ -332,7 +332,62 @@ class MultiClassClassificationEngine(LearningEngine):
             self._validate()
 
     def _on_end_iteration(self):
-        super(MultiClassClassificationEngine, self)._on_end_iteration()
+        super()._on_end_iteration()
         pred = torch.argmax(self._state.output, 1)
         self._state.correct += torch.eq(pred, self._state.target).sum().item()
         self._state.total += len(pred)
+
+class MultiLabelClassificationEngine(LearningEngine):
+    r"""
+    Learning engine for multi-label classification problems
+
+    Arguments:
+
+    [REQUIRED ARGS]
+        net(Module): The network to be trained
+        criterion(Module): Loss function
+        train_loader(iterable): Dataloader for training set, with batch input in the
+            format [INPUT_1, ..., INPUT_N, LABELS]
+
+    [OPTIONAL ARGS]
+        val_loader(iterable): Dataloader for validation set, with batch input in the
+            format [INPUT_1, ..., INPUT_N, LABELS]
+        optim(str): Optimizer to be used. Choose between 'SGD' and 'Adam'
+        optim_params(dict): Parameters for the selected optimizer
+        optim_state_dict(dict): Optimizer state dict to be loaded
+        lr_scheduler(bool): If True, use MultiStepLR as the learning rate scheduler
+        lr_sched_params(dict): Parameters for the learning rate scheduler
+        verbal(bool): If True, print statistics every fixed interval
+        print_interval(int): Number of iterations to print statistics
+        cache_dir(str): Directory to save checkpoints
+
+    Example:
+
+        >>> #
+    """
+    def __init__(self,
+            net,
+            criterion,
+            train_loader,
+            val_loader=None,
+            **kwargs):
+        
+        super().__init__(net, criterion, train_loader, **kwargs)
+        val_loader.pin_memory = torch.cuda.is_available()
+        self._val_loader = val_loader
+
+    def _validate(self):
+        pass
+
+    def _on_start_epoch(self):
+        if self._state.epoch == 0 and self._val_loader is not None:
+            self._validate()
+        super()._on_start_epoch()
+
+    def _on_end_epoch(self):
+        super()._on_end_epoch()
+        if self._val_loader is not None:
+            self._validate()
+
+    def _on_end_iteration(self):
+        pass
