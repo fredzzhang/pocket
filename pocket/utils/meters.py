@@ -112,13 +112,13 @@ class AveragePrecisionMeter:
         target(tensor[N, K], optinoal): Binary labels
     """
     def __init__(self, algorithm="11P", output=None, target=None):
-        self._output = output if output is not None \
+        self._output = output.float() if output is not None \
             else torch.Tensor([])
-        self._target = target if target is not None \
+        self._target = target.float() if target is not None \
             else torch.Tensor([])
 
-        self._output_temp = []
-        self._target_temp = []
+        self._output_temp = [torch.Tensor([])]
+        self._target_temp = [torch.Tensor([])]
 
         if algorithm == "11P":
             self._eval_alg = self.compute_ap_with_11_point_interpolation
@@ -129,39 +129,93 @@ class AveragePrecisionMeter:
         else:
             raise ValueError("Unknown algorithm option {}.".format(algorithm))
 
-    @staticmethod            
-    def compute_ap_as_auc(output, target):
+    @classmethod            
+    def compute_ap_as_auc(cls, output, target):
         """
+        Compute AP precisely as the area under the precision-recall curve
+
         Arguments:
-            output(tensor[N, K])
-            target(tensor[N, K])
+            output(FloatTensor[N, K])
+            target(FloatTensor[N, K])
         Returns:
-            tensor[K]
+            ap(FloatTensor[K])
         """
-        raise NotImplementedError
-    
-    @staticmethod
-    def compute_ap_with_interpolation(output, target):
+        prec, rec = cls.compute_precision_and_recall(output, target)
+        ap = torch.zeros(output.shape[1])
+        for k in range(output.shape[1]):
+            for j in range(output.shape[0]):
+                ap[k] +=  prec[j, k] * rec[j, k] if j == 0 \
+                    else 0.5 * (prec[j, k] + prec[j-1, k]) * (rec[j, k] - rec[j-1, k])
+        return ap
+
+    @classmethod
+    def compute_ap_with_interpolation(cls, output, target):
         """
+        Compute AP with interpolation as per voc2010
+
         Arguments:
-            output(tensor[N, K])
-            target(tensor[N, K])
+            output(FloatTensor[N, K])
+            target(FloatTensor[N, K])
         Returns:
-            tensor[K]
+            ap(FloatTensor[K])
         """
-        raise NotImplementedError
+        prec, rec = cls.compute_precision_and_recall(output, target)
+        # TODO: Perform interpolation to make precision non-decreasing
+        
+
+        ap = torch.zeros(output.shape[1])
+        for k in range(output.shape[1]):
+            for j in range(output.shape[0]):
+                ap[k] +=  prec[j, k] * rec[j, k] if j == 0 \
+                    else 0.5 * (prec[j, k] + prec[j-1, k]) * (rec[j, k] - rec[j-1, k])
+        return ap
+
+    @classmethod
+    def compute_ap_with_11_point_interpolation(cls, output, target):
+        """
+        Compute AP using 11-point interpolation algorithm as per voc
+        challenge prior to voc2010
+
+        Arguments:
+            output(FloatTensor[N, K])
+            target(FloatTensor[N, K])
+        Returns:
+            ap(FloatTensor[K])
+        """
+        prec, rec = cls.compute_precision_and_recall(output, target)
+        ap = torch.zeros(output.shape[1])
+        for k in range(output.shape[1]):
+            for t in torch.linspace(0, 1, 11):
+                inds = torch.nonzero(rec[:, k] >= t).squeeze()
+                if inds.numel():
+                    ap[k] += (prec[inds, k].max() / 11)
+        return ap
 
     @staticmethod
-    def compute_ap_with_11_point_interpolation(output, target):
+    def compute_precision_and_recall(output, target, ep=1e-8):
         """
         Arguments:
-            output(tensor[N, K])
-            target(tensor[N, K])
+            output(FloatTensor[N, K])
+            target(FloatTensor[N, K])
+            ep(float): A small constant to avoid division by zero
         Returns:
-            tensor[K]
+            prec(FloatTensor[N, K])
+            rec(FloatTensor[N, K])
         """
-        raise NotImplementedError
+        order = output.argsort(0, descending=True)
+        tp = target[
+            order,
+            torch.ones_like(order) * torch.arange(output.shape[1])
+        ]
+        fp = 1 - tp
+        tp = tp.cumsum(0)
+        fp = fp.cumsum(0)
 
+        prec = tp / (tp + fp)
+        # NOTE: The insignificant constant could potentially result in 100%
+        # recall being unreachable. Be cautious about its magnitude.
+        rec = tp / (target.sum(0) + ep)
+        return prec, rec
 
     def append(self, output, target):
         """
@@ -172,20 +226,24 @@ class AveragePrecisionMeter:
             target(tensor[N, K]): Binary labels
         """
         if isinstance(output, torch.Tensor) and isinstance(target, torch.Tensor):
-            self._output_temp.append(output.detach().cpu())
-            self._target_temp.append(target.detach().cpu())
+            self._output_temp.append(output.detach().cpu().float())
+            self._target_temp.append(target.detach().cpu().float())
         else:
             raise TypeError("Arguments should both be torch.Tensor")
 
-    def reset(self, keep_tracked=False):
+    def reset(self, keep_old=False):
         """
         Clear saved statistics
+
+        Arguments:
+            keep_tracked(bool): If True, clear only the newly collected statistics
+                since last evaluation
         """
-        if not keep_tracked:
+        if not keep_old:
             self._output = torch.Tensor([])
             self._target = torch.Tensor([])
-        self._output_temp = []
-        self._target_temp = []
+        self._output_temp = [torch.Tensor([])]
+        self._target_temp = [torch.Tensor([])]
 
     def eval(self):
         """
@@ -202,6 +260,6 @@ class AveragePrecisionMeter:
             self._target,
             torch.cat(self._target_temp, 0)
         ], 0)
-        self.reset(keep_tracked=True)
+        self.reset(keep_old=True)
 
         return self._eval_alg(self._output, self._target)
