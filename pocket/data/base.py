@@ -9,9 +9,9 @@ Australian Centre for Robotic Vision
 
 import os
 import json
-import torch
 import pickle
 from PIL import Image
+from torch.utils.data import Dataset
 
 class DataDict(dict):
     r"""
@@ -61,7 +61,7 @@ class DataDict(dict):
     def is_empty(self):
         return not bool(len(self))
 
-class ImageDataset(torch.utils.data.Dataset):
+class ImageDataset(Dataset):
     """
     Base class for image dataset
 
