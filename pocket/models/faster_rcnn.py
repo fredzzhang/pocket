@@ -2,70 +2,80 @@
 Faster R-CNN with different backbones based on
 torchvision implementation
 
-Written by Frederic Zhang
-Australian National University
+Fred Zhang <frederic.zhang@anu.edu.au>
 
-Last updated in Jun. 2019
+The Australian National University
+Australian Centre for Robotic Vision
 """
 
-from collections import OrderedDict
-
-from torch import nn
 from torchvision import models
+from torchvision.ops import misc as misc_nn_ops
+from torchvision.models._utils import IntermediateLayerGetter
 from torchvision.models.detection import FasterRCNN
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
-class BackboneForFasterRCNN(nn.ModuleDict):
-    """
-    Prepare backbone architecture for Faster R-CNN
+def resnet_backbone(backbone_name, pretrained):
+    backbone = models.resnet.__dict__[backbone_name](
+        pretrained=pretrained,
+        norm_layer=misc_nn_ops.FrozenBatchNorm2d)
+    # freeze layers
+    for name, parameter in backbone.named_parameters():
+        if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
+            parameter.requires_grad_(False)
 
-    Keep the backbone network up to a specified layer, assuming layers in the
-    backbone are registered in the same order as execution in forward pass
-
-    Append number of output channels of the backbone network as a class attribute,
-    as per requirement of the FasterRCNN module
-    
-    Arguments:
-        backbone(Module): Backbone architecture, typically with FC layers
-        return_layer(str): Name of layer to take output from
-        out_channels(int): Number of output channels of the backbone network
-    """
-    def __init__(self, backbone, return_layer, out_channels):
-        layers = OrderedDict()
-        for name, module in backbone.named_children():
-            layers[name] = module
-            if name == return_layer:
-                break
-        super(BackboneForFasterRCNN, self).__init__(layers)
-        self.out_channels = out_channels
-
-    def forward(self, x):
-        for name, module in self.named_children():
-            x = module(x)
-        return x
-
-_models = {
-        'resnet50': models.resnet50,
-        'resnet101': models.resnet101,
-        'resnet152': models.resnet152
-        }
+    return IntermediateLayerGetter(backbone, {'layer4': 0})
 
 def fasterrcnn_resnet(backbone_name,
         num_classes=91, pretrained_backbone=True, **kwargs):
     """
-    Construct a Faster R-CNN network, using a specified backbone
+    Construct Faster R-CNN with a ResNet backbone
 
     Arguments:
-        backbone_name(str): Name of the backbone
+        backbone_name(str): Name of the backbone.
+            Refer to torchvision.models.resnet.__dict__ for details
         num_classes(int, optional): Number of target classes, default: 91(COCO)
-        pretrained_backbone(bool, optional): Use the backbone with weights trained on ImageNet
+        pretrained_backbone(bool, optional): If True, load weights for backbone
+            pre-trained on ImageNet
 
         Refer to torchvision.models.detection.FasterRCNN for kwargs
     """
 
-    model = _models[backbone_name](
-            pretrained=pretrained_backbone)
-    backbone = BackboneForFasterRCNN(model, 'layer4', 2048)
-
+    backbone = resnet_backbone(backbone_name, pretrained_backbone)
+    backbone.out_channels = 2048
     model = FasterRCNN(backbone, num_classes, **kwargs)
 
+    return model
+
+model_urls = {
+    'fasterrcnn_resnet50_fpn_coco':
+        'https://download.pytorch.org/models/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth',
+}
+
+def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
+        num_classes=91, pretrained_backbone=True, **kwargs):
+    """
+    Construct Faster R-CNN with a ResNet-FPN backbone
+
+    Arguments:
+        backbone_name(str): Name of the backbone.
+            Refer to torchvision.models.resnet.__dict__ for details
+        pretrained(bool, optional): If True, load weights for the detector
+            pretrained on COCO. Only ResNet50-FPN is supported for the moment.
+        num_classes(int, optional): Number of target classes, default: 91(COCO)
+        pretrained_backbone(bool, optional): If True, load weights for backbone
+            pre-trained on ImageNet
+
+        Refer to torchvision.models.detection.FasterRCNN for kwargs
+    """
+    if pretrained:
+        assert backbone_name == 'resnet50',\
+            'Faster R-CNN with FPN only has pretrained model with ResNet50 as backbone.'
+        # no need to download the backbone if pretrained is set
+        pretrained_backbone = False
+    backbone = resnet_fpn_backbone(backbone_name, pretrained_backbone)
+    model = FasterRCNN(backbone, num_classes, **kwargs)
+    if pretrained:
+        state_dict = models.utils.load_state_dict_from_url(
+            model_urls['fasterrcnn_resnet50_fpn_coco'])
+        model.load_state_dict(state_dict)
     return model
