@@ -253,10 +253,10 @@ class MultiClassClassificationEngine(LearningEngine):
         ...         ),
         ...     batch_size=128, shuffle=True)
         >>> test_loader = torch.utils.data.DataLoader(
-        ...     datasets.MNIST('./data', train=False, download=True,
-        ...             transform=transforms.Compose([
-        ...                 transforms.ToTensor(),
-        ...                 transforms.Normalize((0.1307,), (0.3081,))])
+        ...     datasets.MNIST('./data', train=False,
+        ...         transform=transforms.Compose([
+        ...             transforms.ToTensor(),
+        ...             transforms.Normalize((0.1307,), (0.3081,))])
         ...         ),
         ...     batch_size=100, shuffle=False)
         >>> # Intialize learning engine and start training
@@ -352,6 +352,8 @@ class MultiLabelClassificationEngine(LearningEngine):
     [OPTIONAL ARGS]
         val_loader(iterable): Dataloader for validation set, with batch input in the
             format [INPUT_1, ..., INPUT_N, LABELS]
+        ap_algorithm(str): Choice of algorithm to evaluate average precision. Refer
+            to pocket.utils.AveragePrecisionMeter for details
         optim(str): Optimizer to be used. Choose between 'SGD' and 'Adam'
         optim_params(dict): Parameters for the selected optimizer
         optim_state_dict(dict): Optimizer state dict to be loaded
@@ -370,15 +372,17 @@ class MultiLabelClassificationEngine(LearningEngine):
             criterion,
             train_loader,
             val_loader=None,
+            ap_algorithm='INT',
             **kwargs):
         
         super().__init__(net, criterion, train_loader, **kwargs)
         val_loader.pin_memory = torch.cuda.is_available()
         self._val_loader = val_loader
+        self._ap_alg = ap_algorithm
 
     def _validate(self):
         self._state.net.eval()
-        ap = AveragePrecisionMeter()
+        ap = AveragePrecisionMeter(algorithm=self._ap_alg)
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
@@ -400,7 +404,7 @@ class MultiLabelClassificationEngine(LearningEngine):
     def _on_start_epoch(self):
         if self._state.epoch == 0 and self._val_loader is not None:
             self._validate()
-            self._state.ap = AveragePrecisionMeter()
+            self._state.ap = AveragePrecisionMeter(algorithm=self._ap_alg)
         super()._on_start_epoch()
 
     def _on_end_epoch(self):
