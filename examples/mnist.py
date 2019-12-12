@@ -28,10 +28,10 @@ def main():
             ),
         batch_size=128, shuffle=True)
     test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('./data', train=False, download=True,
-                transform=transforms.Compose([
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.1307,), (0.3081,))])
+        datasets.MNIST('./data', train=False,
+            transform=transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))])
             ),
         batch_size=100, shuffle=False)
     # Intialize learning engine and start training
@@ -48,15 +48,15 @@ if __name__ == '__main__':
     # Sample output
     """
     => Validation
-    Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 5.24s
+    Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 2.35s
 
-    [Ep.][Iter.]: [1][100] | Loss: 1.1665 | Time[Data][Iter.]: [466.5847s][466.5847s]
-    [Ep.][Iter.]: [1][200] | Loss: 2.2773 | Time[Data][Iter.]: [0.2861s][2.6689s]
-    [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data][Iter.]: [0.2581s][2.5305s]
-    [Ep.][Iter.]: [1][400] | Loss: 2.0143 | Time[Data][Iter.]: [0.2986s][2.6412s]
+    [Ep.][Iter.]: [1][100] | Loss: 2.2971 | Time[Data][Iter.]: [2.9884s][2.8512s]
+    [Ep.][Iter.]: [1][200] | Loss: 2.2773 | Time[Data][Iter.]: [0.2582s][2.8057s]
+    [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data][Iter.]: [0.2949s][2.9972s]
+    [Ep.][Iter.]: [1][400] | Loss: 2.0143 | Time[Data][Iter.]: [0.2578s][2.4794s]
 
     => Training
-    Epoch: 1 | Acc.: 0.3181[19087/60000]
+    Epoch: 1 | Acc.: 0.3181[19090/60000]
     => Validation
-    Epoch: 1 | Acc.: 0.7950[7950/10000] | Loss: 1.0872 | Time: 2.18s
+    Epoch: 1 | Acc.: 0.7951[7951/10000] | Loss: 0.7701 | Time: 2.04s
     """
