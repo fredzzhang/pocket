@@ -13,7 +13,7 @@ import time
 import torch
 from torch.utils.data import DataLoader
 
-from .meters import NumericalMeter, HandyTimer
+from .meters import NumericalMeter, HandyTimer, AveragePrecisionMeter
 from ..data import DataDict
 
 class State:
@@ -253,7 +253,7 @@ class MultiClassClassificationEngine(LearningEngine):
         ...         ),
         ...     batch_size=128, shuffle=True)
         >>> test_loader = torch.utils.data.DataLoader(
-        ...     datasets.MNIST('./data', train=False, 
+        ...     datasets.MNIST('./data', train=False, download=True,
         ...             transform=transforms.Compose([
         ...                 transforms.ToTensor(),
         ...                 transforms.Normalize((0.1307,), (0.3081,))])
@@ -377,17 +377,46 @@ class MultiLabelClassificationEngine(LearningEngine):
         self._val_loader = val_loader
 
     def _validate(self):
-        pass
+        self._state.net.eval()
+        ap = AveragePrecisionMeter()
+        running_loss = NumericalMeter()
+        timestamp = time.time()
+        for batch in self._val_loader:
+            batch = [item.to(self._device) for item in batch]
+            with torch.no_grad():
+                output = self._state.net(*batch[:-1])
+            loss = self._criterion(output, batch[-1])
+            running_loss.append(loss.item())
+            ap.append(output, batch[-1])
+        map_ = ap.eval().mean().item()
+        elapsed = time.time() - timestamp
+
+        print("=> Validation\n"
+            "Epoch: {} | mAP: {:.4f} | Loss: {:.4f} | Time: {:.2f}s\n".format(
+                self._state.epoch, map_,
+                running_loss.mean(), elapsed
+            ))
 
     def _on_start_epoch(self):
         if self._state.epoch == 0 and self._val_loader is not None:
             self._validate()
+            self._state.ap = AveragePrecisionMeter()
         super()._on_start_epoch()
 
     def _on_end_epoch(self):
         super()._on_end_epoch()
+        timestamp = time.time()
+        map_ = self._state.ap.eval().mean().item()
+        elapsed = time.time() - timestamp
+        print("\n=> Training\n"
+            "Epoch: {} | mAP: {:.4f} | Time(eval): {:.2f}s".format(
+                self._state.epoch,
+                map_, elapsed
+            ))
+        self._state.ap.reset()
         if self._val_loader is not None:
             self._validate()
 
     def _on_end_iteration(self):
-        pass
+        super()._on_end_iteration()
+        self._state.ap.append(self._state.output, self._state.target)
