@@ -365,7 +365,71 @@ class MultiLabelClassificationEngine(LearningEngine):
 
     Example:
 
-        >>> #
+        >>> # An example of multi-label classification on voc2012
+        >>> CLASSES = (
+        ... "aeroplane", "bicycle", "bird", "boat", "bottle", "bus",
+        ... "car", "cat", "chair", "cow", "diningtable", "dog",
+        ... "horse", "motorbike", "person", "pottedplant",
+        ... "sheep", "sofa", "train", "tvmonitor")
+        >>> NUM_CLASSES = len(CLASSES)
+        >>> import torch
+        >>> from torchvision import datasets, models, transforms
+        >>> from pocket.utils import MultiLabelClassificationEngine
+        >>> # Fix random seed
+        >>> torch.manual_seed(0)
+        >>> # Initialize network
+        >>> net = models.resnet50(num_classes=NUM_CLASSES)
+        >>> # Initialize loss function
+        >>> criterion = torch.nn.BCEWithLogitsLoss()
+        >>> # Prepare dataset
+        >>> def target_transform(x):
+        ...     target = torch.zeros(NUM_CLASSES)
+        ...     anno = x['annotation']['object']
+        ...     if isinstance(anno, list):
+        ...         for obj in anno:
+        ...             target[CLASSES.index(obj['name'])] = 1
+        ...     else:
+        ...         target[CLASSES.index(anno['name'])] = 1
+        ... return target
+        >>> train_loader = torch.utils.data.DataLoader(
+        ...     datasets.VOCDetection('./data', image_set='train', download=True,
+        ...         transform=transforms.Compose([
+        ...         transforms.Resize([480, 480]),
+        ...         transforms.RandomHorizontalFlip(),
+        ...         transforms.ToTensor(),
+        ...         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ...         ]),
+        ...         target_transform=target_transform),
+        ...     batch_size=32, shuffle=True, num_workers=4)
+        >>> val_loader = torch.utils.data.DataLoader(
+        ...     datasets.VOCDetection('./data', image_set='val',
+        ...         transform=transforms.Compose([
+        ...         transforms.Resize([480, 480]),
+        ...         transforms.ToTensor(),
+        ...         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ...         ]),
+        ...         target_transform=target_transform),
+        ...     batch_size=32, num_workers=4)
+        >>> # Initialize learning engine and start training
+        >>> engine = MultiLabelClassificationEngine(net, criterion, train_loader,
+        ... val_loader=val_loader, print_interval=50,
+        ... optim_params={'lr': 0.1, 'momentum': 0.9, 'weight_decay':5e-4})
+        >>> # Train the network for one epoch with default optimizer option
+        >>> # Checkpoints will be saved under ./checkpoints by default, containing 
+        >>> # saved model parameters, optimizer statistics and progress
+        >>> engine(1)
+
+        => Validation
+        Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 95.99s
+
+        [Ep.][Iter.]: [1][50] | Loss: 0.3523 | Time[Data][Iter.]: [56.7899s][0.7396s]
+        [Ep.][Iter.]: [1][100] | Loss: 0.2589 | Time[Data][Iter.]: [19.1067s][0.0108s]
+        [Ep.][Iter.]: [1][150] | Loss: 0.2540 | Time[Data][Iter.]: [19.3830s][0.0100s]
+
+        => Training
+        Epoch: 1 | mAP: 0.0972 | Time(eval): 8.93s
+        => Validation
+        Epoch: 1 | mAP: 0.1309 | Loss: 0.3584 | Time: 50.94s
     """
     def __init__(self,
             net,
