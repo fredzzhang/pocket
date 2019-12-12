@@ -14,8 +14,10 @@ class Meter:
     """
     Base class
     """
-    def __init__(self, x=[]):
-        self._list = x
+    def __init__(self, x=list()):
+        # NOTE: It is necessary to call .copy() as the default empty list
+        # will be passed to EVERY instance of the class
+        self._list = x.copy()
 
     def __len__(self):
         return len(self._list)
@@ -56,21 +58,26 @@ class Meter:
         """Return the maximum element"""
         raise NotImplementedError
 
+    @property
+    def items(self):
+        """Return the content"""
+        return self._list
+
 class NumericalMeter(Meter):
     """
     Meter class with numerals as elements
     """
     VALID_TYPES = [int, float]
     
-    def __init__(self, x=[]):
+    def __init__(self, x=list()):
         for item in x:
             assert type(item) in self.VALID_TYPES, \
                 "Given list contains non-numerical element {}".format(item)
-        super(NumericalMeter, self).__init__(x)
+        super().__init__(x)
 
     def append(self, x):
         if type(x) in self.VALID_TYPES:
-            super(NumericalMeter, self).append(x)
+            super().append(x)
         else:
             raise TypeError("Given element \'{}\' is not a numeral".format(x))
 
@@ -91,7 +98,7 @@ class HandyTimer(NumericalMeter):
     A timer class that tracks a sequence of time
     """
     def __init__(self):
-        super(HandyTimer, self).__init__()
+        super().__init__()
 
     def __enter__(self):
         self._timestamp = time.time()
