@@ -26,7 +26,6 @@ def target_transform(x):
         for obj in anno:
             target[CLASSES.index(obj['name'])] = 1
     else:
-        assert isinstance(anno, dict)
         target[CLASSES.index(anno['name'])] = 1
     return target
 
