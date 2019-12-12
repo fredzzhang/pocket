@@ -167,14 +167,11 @@ class AveragePrecisionMeter:
             ap(FloatTensor[K])
         """
         prec, rec = cls.compute_precision_and_recall(output, target)
-        # TODO: Perform interpolation to make precision non-decreasing
-        
-
         ap = torch.zeros(output.shape[1])
         for k in range(output.shape[1]):
             for j in range(output.shape[0]):
-                ap[k] +=  prec[j, k] * rec[j, k] if j == 0 \
-                    else 0.5 * (prec[j, k] + prec[j-1, k]) * (rec[j, k] - rec[j-1, k])
+                ap[k] +=  prec[j:, k].max() * rec[j, k] if j == 0 \
+                    else 0.5 * (prec[j:, k].max() + prec[j-1:, k].max()) * (rec[j, k] - rec[j-1, k])
         return ap
 
     @classmethod
