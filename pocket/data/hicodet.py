@@ -8,6 +8,7 @@ Australian Centre for Robotic Vision
 """
 
 import os
+import json
 
 from .base import ImageDataset
 
@@ -21,10 +22,12 @@ class HICODet(ImageDataset):
         target_transform(callable, optional): A function/transform that takes in the
             target and transforms it
     """
-    def __init__(self, root, annoFile, transform=None, target_transform=None):
-        super(HICODet, self).__init__(root, annoFile, transform, target_transform)
+    def __init__(self, root, annoFile, transform=None, target_transform=None, transforms=None):
+        super(HICODet, self).__init__(root, transform, target_transform, transforms)
+        with open(annoFile, 'r') as f:
+            anno = json.load(f)
         self._idx, self._anno, self._filenames, self._class_corr, self._empty_idx = \
-            self.load_annotation_and_metadata(self._anno)
+            self.load_annotation_and_metadata(anno)
 
     def __len__(self):
         """Return the number of images"""
@@ -39,8 +42,10 @@ class HICODet(ImageDataset):
             tuple[image, target]
         """
         intra_idx = self._idx[i]
-        return self.load_image(os.path.join(self._root, self._filenames[intra_idx])), \
-            self._target_transform(self._anno[intra_idx])
+        return self._transforms(
+            self.load_image(os.path.join(self._root, self._filenames[intra_idx])), 
+            self._anno[intra_idx]
+            )
 
     @property
     def class_corr(self):
