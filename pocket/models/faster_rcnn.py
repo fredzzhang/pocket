@@ -69,7 +69,7 @@ def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
         backbone_name(str): Name of the backbone.
             Refer to torchvision.models.resnet.__dict__ for details
         pretrained(bool, optional): If True, load weights for the detector
-            pretrained on COCO. Only ResNet50-FPN is supported for the moment.
+            pretrained on MS COCO. Only ResNet50-FPN is supported for the moment.
         num_classes(int, optional): Number of target classes, default: 91(COCO)
         pretrained_backbone(bool, optional): If True, load weights for backbone
             pre-trained on ImageNet
@@ -86,6 +86,6 @@ def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
             model_urls['fasterrcnn_resnet50_fpn_coco'])
         model.load_state_dict(state_dict)
     elif pretrained:
-        print("WARNING: No pretrained detector for backbone {}.".format(backbone_name),
-            "Proceed with only pretrained backbone.")
+        print("WARNING: No pretrained detector on MS COCO with {}.".format(backbone_name),
+            "Proceed with only pretrained backbone on ImageNet.")
     return model
