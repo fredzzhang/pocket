@@ -15,8 +15,8 @@ class Meter:
     Base class
     """
     def __init__(self, x=list()):
-        # NOTE: It is necessary to call .copy() as the default empty list
-        # will be passed to EVERY instance of the class
+        # NOTE: It is necessary to call .copy() as the default argument is 
+        # mutable and will be passed to EVERY instance of the class
         self._list = x.copy()
 
     def __len__(self):
