@@ -7,10 +7,11 @@ The Australian National University
 Australian Centre for Robotic Vision
 """
 
+from torch import nn
 from torch.nn.functional import relu
 from .faster_rcnn import fasterrcnn_resnet_fpn
 
-class RoIFeatureExtractor:
+class RoIFeatureExtractor(nn.Module):
     """
     RoI feature extractor using Faster R-CNN with ResNet-FPN
 
@@ -27,10 +28,21 @@ class RoIFeatureExtractor:
     Arguments:
         return_layer(str, optional): The specific layer to extract feature from.
             A choice amongst 'roi_pool', 'fc6' and 'fc7'
-        backbone_name(str, optional):
-        pretrained(bool, optional):
+        backbone_name(str, optional): Name of the backbone.
+            Refer to torchvision.models.resnet.__dict__ for details
+        pretrained(bool, optional): If True, use pretrained weights on COCO
+
+    Example:
+
+        >>> import torch
+        >>> from pocket.models import RoIFeatureExtractor()
+        >>> m = RoIFeatureExtractor()
+        >>> image = torch.rand(3, 512, 512)
+        >>> boxes = torch.rand(5, 4) * 256; boxes[:, 2:] += boxes[:, :2]
+        >>> f = m([image], [boxes])
     """
     def __init__(self, return_layer='fc7', backbone_name='resnet50', pretrained=True):
+        super().__init__()
         self._return_layer = return_layer
         self._backbone_name = backbone_name
         self._pretrained = pretrained
@@ -49,7 +61,7 @@ class RoIFeatureExtractor:
         reprstr += ')'
         return reprstr
 
-    def __call__(self, images, boxes):
+    def forward(self, images, boxes):
         """
         Extract RoI features
 
@@ -95,7 +107,7 @@ class RoIProjector(RoIFeatureExtractor):
     def __init__(self, backbone_name='resnet50', pretrained=True):
         super().__init__('fc7', backbone_name, pretrained)
 
-    def __call__(self, images, boxes):
+    def forward(self, images, boxes):
         """
         Compute the feature representation and class logits for given RoIs
 
@@ -107,7 +119,7 @@ class RoIProjector(RoIFeatureExtractor):
             Tensor[M, 1024]: fc7 features stacked in order
             Tensor[M, 91]: Predicted scores for each class including background
         """
-        box_features = super().__call__(images, boxes)
+        box_features = super().forward(images, boxes)
         class_logits, _ = self.detector.roi_heads.box_predictor(relu(box_features))
 
         return box_features, class_logits
