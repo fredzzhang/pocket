@@ -8,10 +8,12 @@ The Australian National University
 Australian Centre for Robotic Vision
 """
 
+from torch import nn
 from torchvision import models
 from torchvision.ops import misc as misc_nn_ops
 from torchvision.models._utils import IntermediateLayerGetter
 from torchvision.models.detection import FasterRCNN
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 
 def resnet_backbone(backbone_name, pretrained):
@@ -23,7 +25,8 @@ def resnet_backbone(backbone_name, pretrained):
         if 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
             parameter.requires_grad_(False)
 
-    return IntermediateLayerGetter(backbone, {'layer4': 0})
+    # ResNet C4 features are used as per Mask R-CNN paper
+    return IntermediateLayerGetter(backbone, {'layer3': 0}), backbone.layer4
 
 def fasterrcnn_resnet(backbone_name,
         num_classes=91, pretrained_backbone=True, **kwargs):
@@ -40,9 +43,15 @@ def fasterrcnn_resnet(backbone_name,
         Refer to torchvision.models.detection.FasterRCNN for kwargs
     """
 
-    backbone = resnet_backbone(backbone_name, pretrained_backbone)
-    backbone.out_channels = 2048
-    model = FasterRCNN(backbone, num_classes, **kwargs)
+    backbone, res5 = resnet_backbone(backbone_name, pretrained_backbone)
+    backbone.out_channels = 1024
+    box_head = nn.Sequential(
+        res5,
+        nn.AdaptiveAvgPool2d((1, 1))
+    )
+    box_predictor = FastRCNNPredictor(2048, num_classes)
+    model = FasterRCNN(backbone,
+        box_head=box_head, box_predictor=box_predictor, **kwargs)
 
     return model
 
@@ -67,15 +76,16 @@ def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
 
         Refer to torchvision.models.detection.FasterRCNN for kwargs
     """
-    if pretrained:
-        assert backbone_name == 'resnet50',\
-            'Faster R-CNN with FPN only has pretrained model with ResNet50 as backbone.'
+    if pretrained and backbone_name == 'resnet50':
         # no need to download the backbone if pretrained is set
         pretrained_backbone = False
     backbone = resnet_fpn_backbone(backbone_name, pretrained_backbone)
     model = FasterRCNN(backbone, num_classes, **kwargs)
-    if pretrained:
+    if pretrained and backbone_name == 'resnet50':
         state_dict = models.utils.load_state_dict_from_url(
             model_urls['fasterrcnn_resnet50_fpn_coco'])
         model.load_state_dict(state_dict)
+    elif pretrained:
+        print("WARNING: No pretrained detector for backbone {}.".format(backbone_name),
+            "Proceed with only pretrained backbone.")
     return model
