@@ -8,7 +8,6 @@ Australian Centre for Robotic Vision
 """
 
 import os
-import json
 import pickle
 from PIL import Image
 from torch.utils.data import Dataset
@@ -67,21 +66,21 @@ class ImageDataset(Dataset):
 
     Arguments:
         root(str): Root directory where images are downloaded to
-        annFile(str): Path to json annotation file
-        transform(callable, optional): A function/transform that  takes in an PIL image
+        transform(callable, optional): A function/transform that takes in an PIL image
             and returns a transformed version
         target_transform(callable, optional): A function/transform that takes in the
             target and transforms it
+        transforms (callable, optional): A function/transform that takes input sample 
+            and its target as entry and returns a transformed version.
     """
-    def __init__(self, root, annoFile, transform=None, target_transform=None):
+    def __init__(self, root, transform=None, target_transform=None, transforms=None):
         self._root = root
-        self._annoFile = annoFile
-        with open(annoFile, 'r') as f:
-            self._anno = json.load(f)
         self._transform = transform if transform is not None \
             else lambda a: a
         self._target_transform = target_transform if target_transform is not None \
             else lambda a: a
+        self._transforms = transforms if transforms is not None \
+            else lambda a, b: (self._transform(a), self._target_transform(b))
 
     def __len__(self):
         raise NotImplementedError
@@ -91,13 +90,13 @@ class ImageDataset(Dataset):
     
     def __repr__(self):
         """Return the executable string representation"""
-        reprstr = self.__class__.__name__ + '(root=' + repr(self._root) + ', '
-        reprstr += 'annoFile='
-        reprstr += repr(self._annoFile)
+        reprstr = self.__class__.__name__ + '(root=' + repr(self._root)
         reprstr += ', transform='
         reprstr += repr(self._transform)
         reprstr += ', target_transform='
         reprstr += repr(self._target_transform)
+        reprstr += ', transfroms='
+        reprstr += repr(self._transforms)
         reprstr += ')'
         return reprstr
 
@@ -110,4 +109,4 @@ class ImageDataset(Dataset):
 
     def load_image(self, path):
         """Load an image and apply transform"""
-        return self._transform(Image.open(path))
+        return Image.open(path)
