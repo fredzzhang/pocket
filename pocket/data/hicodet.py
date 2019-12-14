@@ -21,6 +21,8 @@ class HICODet(ImageDataset):
             and returns a transformed version
         target_transform(callable, optional): A function/transform that takes in the
             target and transforms it
+        transforms (callable, optional): A function/transform that takes input sample 
+            and its target as entry and returns a transformed version.
     """
     def __init__(self, root, annoFile, transform=None, target_transform=None, transforms=None):
         super(HICODet, self).__init__(root, transform, target_transform, transforms)
@@ -28,6 +30,7 @@ class HICODet(ImageDataset):
             anno = json.load(f)
         self._idx, self._anno, self._filenames, self._class_corr, self._empty_idx = \
             self.load_annotation_and_metadata(anno)
+        self._annoFile = annoFile
 
     def __len__(self):
         """Return the number of images"""
@@ -46,6 +49,24 @@ class HICODet(ImageDataset):
             self.load_image(os.path.join(self._root, self._filenames[intra_idx])), 
             self._anno[intra_idx]
             )
+
+    def __repr__(self):
+        """Return the executable string representation"""
+        reprstr = self.__class__.__name__ + '(root=\"' + repr(self._root)
+        reprstr += '\", annoFile=\"'
+        reprstr += repr(self._annoFile)
+        reprstr += '\")'
+        # Ignore the optional arguments
+        return reprstr
+
+
+    def __str__(self):
+        """Return the readable string representation"""
+        reprstr = 'Dataset: ' + self.__class__.__name__ + '\n'
+        reprstr += '\tNumber of images: {}\n'.format(self.__len__())
+        reprstr += '\tImage directory: {}\n'.format(self._root)
+        reprstr += '\tAnnotation file: {}\n'.format(self._root)
+        return reprstr
 
     @property
     def class_corr(self):
