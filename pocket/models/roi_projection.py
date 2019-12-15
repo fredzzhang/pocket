@@ -98,7 +98,7 @@ class RoIFeatureExtractor(nn.Module):
         elif self._return_layer == 'fc7':
             box_features = box_features.flatten(start_dim=1)
             box_features = relu(self.detector.roi_heads.box_head.fc6(box_features))
-            return self.detector.roi_heads.box_head.fc7(box_features)
+            return relu(self.detector.roi_heads.box_head.fc7(box_features))
 
 class RoIProjector(RoIFeatureExtractor):
     """
