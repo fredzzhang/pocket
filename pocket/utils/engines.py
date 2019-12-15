@@ -58,7 +58,8 @@ class LearningEngine(State):
         net(Module): The network to be trained
         criterion(Module): Loss function
         train_loader(iterable): Dataloader for training set, with batch input in the
-            format [INPUT_1, ..., INPUT_N, LABELS]
+            format [INPUT_1, ..., INPUT_N, LABELS]. Each element should take one of 
+            the following forms: Tensor, list[Tensor], dict[Tensor]
 
     [OPTIONAL ARGS]
         optim(str): Optimizer to be used. Choose between 'SGD' and 'Adam'
@@ -150,6 +151,20 @@ class LearningEngine(State):
                 
             self._on_end_epoch()
 
+    def _relocate_to_device(self, x):
+        if type(x) is torch.Tensor:
+            return x.to(self._device)
+        elif type(x) is list:
+            # Assume input data is a list of tensors
+            return [item.to(self._device) for item in x]
+        elif type(x) is dict:
+            # Assume input data is a dictionary of tensors
+            for key in x:
+                x[key] = x[key].to(self._device)
+            return x
+        else:
+            raise TypeError('Unsupported type of data {}'.format(type(x)))
+
     def _on_start_epoch(self):
         self._state.epoch += 1
 
@@ -160,8 +175,8 @@ class LearningEngine(State):
 
     def _on_start_iteration(self):
         self._state.iteration += 1
-        self._state.input = [item.to(self._device) for item in self._state.input]
-        self._state.target = self._state.target.to(self._device)
+        self._state.input = [self._relocate_to_device(item) for item in self._state.input]
+        self._state.target = self._relocate_to_device(self._state.target)
 
     def _on_end_iteration(self):
         if self._verbal and self._state.iteration % self._print_interval == 0:
@@ -217,7 +232,8 @@ class MultiClassClassificationEngine(LearningEngine):
         net(Module): The network to be trained
         criterion(Module): Loss function
         train_loader(iterable): Dataloader for training set, with batch input in the
-            format [INPUT_1, ..., INPUT_N, LABELS]
+            format [INPUT_1, ..., INPUT_N, LABELS]. Each element should take one of 
+            the following forms: Tensor, list[Tensor], dict[Tensor]
 
     [OPTIONAL ARGS]
         val_loader(iterable): Dataloader for validation set, with batch input in the
@@ -347,7 +363,8 @@ class MultiLabelClassificationEngine(LearningEngine):
         net(Module): The network to be trained
         criterion(Module): Loss function
         train_loader(iterable): Dataloader for training set, with batch input in the
-            format [INPUT_1, ..., INPUT_N, LABELS]
+            format [INPUT_1, ..., INPUT_N, LABELS]. Each element should take one of 
+            the following forms: Tensor, list[Tensor], dict[Tensor]
 
     [OPTIONAL ARGS]
         val_loader(iterable): Dataloader for validation set, with batch input in the
