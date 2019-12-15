@@ -15,10 +15,9 @@ class Meter:
     """
     Base class
     """
-    def __init__(self, x=list()):
-        # NOTE: It is necessary to call .copy() as the default argument is 
-        # mutable and will be passed to EVERY instance of the class
-        self._list = x.copy()
+    def __init__(self, x=None):
+        self._list = x if x is not None \
+            else list()
 
     def __len__(self):
         return len(self._list)
@@ -70,7 +69,9 @@ class NumericalMeter(Meter):
     """
     VALID_TYPES = [int, float]
     
-    def __init__(self, x=list()):
+    def __init__(self, x=None):
+        self._list = x if x is not None \
+            else list()
         for item in x:
             assert type(item) in self.VALID_TYPES, \
                 "Given list contains non-numerical element {}".format(item)
