@@ -9,6 +9,7 @@ Australian Centre for Robotic Vision
 
 import time
 import torch
+import multiprocessing
 
 class Meter:
     """
@@ -115,10 +116,15 @@ class AveragePrecisionMeter:
             '11P': 11-point interpolation algorithm prior to voc2010
             'INT': Interpolation algorithm with all points used in voc2010
             'AUC': Precisely as the area under precision-recall curve
+        chunksize(int, optional): The approximate size the given iterable will be split
+            into for each worker. Use -1 to make the argument adaptive to iterable size
+            and number of workers
         output(tensor[N, K], optinoal): Network outputs with N examples and K classes
         target(tensor[N, K], optinoal): Binary labels
     """
-    def __init__(self, algorithm="11P", output=None, target=None):
+    def __init__(self, algorithm="AUC", chunksize=-1, output=None, target=None):
+        self._algorithm = algorithm
+        self._chunksize = chunksize
         self._output = output.float() if output is not None \
             else torch.Tensor([])
         self._target = target.float() if target is not None \
@@ -127,85 +133,103 @@ class AveragePrecisionMeter:
         self._output_temp = [torch.Tensor([])]
         self._target_temp = [torch.Tensor([])]
 
-        if algorithm == "11P":
-            self._eval_alg = self.compute_ap_with_11_point_interpolation
-        elif algorithm == 'INT':
-            self._eval_alg = self.compute_ap_with_interpolation
-        elif algorithm == "AUC":
-            self._eval_alg = self.compute_ap_as_auc
-        else:
-            raise ValueError("Unknown algorithm option {}.".format(algorithm))
+    @staticmethod
+    def compute_per_class_ap_as_auc(tuple_):
+        """
+        Arguments: 
+            tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
+        Returns:
+            ap(FloatTensor[1])
+        """
+        prec, rec = tuple_
+        ap = 0
+        for idx in range(prec.numel()):
+            ap +=  prec[idx] * rec[idx] if idx == 0 \
+                else 0.5 * (prec[idx] + prec[idx - 1]) * (rec[idx] - rec[idx - 1])
+        return ap
+
+    @staticmethod
+    def compute_per_class_ap_with_interpolation(tuple_):
+        """
+        Arguments:
+            tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
+        Returns:
+            ap(FloatTensor[1])
+        """
+        prec, rec = tuple_
+        ap = 0
+        for idx in range(prec.numel()):
+            ap +=  prec[idx:].max() * rec[idx] if idx == 0 \
+                else 0.5 * (prec[idx:].max() + prec[idx - 1:].max()) * (rec[idx] - rec[idx - 1])
+        return ap
+
+    @staticmethod
+    def compute_per_class_ap_with_11_point_interpolation(tuple_):
+        """
+        Arguments:
+            tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
+        Returns:
+            ap(FloatTensor[1])
+        """
+        prec, rec = tuple_
+        ap = 0
+        for t in torch.linspace(0, 1, 11):
+            inds = torch.nonzero(rec >= t).squeeze()
+            if inds.numel():
+                ap += (prec[inds].max() / 11)
+        return ap
 
     @classmethod            
-    def compute_ap_as_auc(cls, output, target):
+    def compute_ap(cls, output, target, algorithm='AUC', chunksize=-1):
         """
         Compute AP precisely as the area under the precision-recall curve
 
         Arguments:
             output(FloatTensor[N, K])
             target(FloatTensor[N, K])
+            chunksize(int, optional): The approximate size the given iterable will be split
+                into for each worker. Use -1 to make the argument adaptive to iterable size
+                and number of workers
         Returns:
             ap(FloatTensor[K])
         """
         prec, rec = cls.compute_precision_and_recall(output, target)
         ap = torch.zeros(output.shape[1])
-        for k in range(output.shape[1]):
-            for j in range(output.shape[0]):
-                ap[k] +=  prec[j, k] * rec[j, k] if j == 0 \
-                    else 0.5 * (prec[j, k] + prec[j-1, k]) * (rec[j, k] - rec[j-1, k])
-        return ap
+        chunksize = int(output.shape[1] / multiprocessing.cpu_count()) if chunksize == -1 \
+            else chunksize
+        
+        if algorithm == 'INT':
+            algorithm_handle = cls.compute_per_class_ap_with_interpolation
+        elif algorithm == '11P':
+            algorithm_handle = cls.compute_per_class_ap_with_11_point_interpolation
+        elif algorithm == 'AUC':
+            algorithm_handle = cls.compute_per_class_ap_as_auc
+        else:
+            raise ValueError("Unknown algorithm option {}.".format(algorithm))
 
-    @classmethod
-    def compute_ap_with_interpolation(cls, output, target):
-        """
-        Compute AP with interpolation as per voc2010
-
-        Arguments:
-            output(FloatTensor[N, K])
-            target(FloatTensor[N, K])
-        Returns:
-            ap(FloatTensor[K])
-        """
-        prec, rec = cls.compute_precision_and_recall(output, target)
-        ap = torch.zeros(output.shape[1])
-        for k in range(output.shape[1]):
-            for j in range(output.shape[0]):
-                ap[k] +=  prec[j:, k].max() * rec[j, k] if j == 0 \
-                    else 0.5 * (prec[j:, k].max() + prec[j-1:, k].max()) * (rec[j, k] - rec[j-1, k])
-        return ap
-
-    @classmethod
-    def compute_ap_with_11_point_interpolation(cls, output, target):
-        """
-        Compute AP using 11-point interpolation algorithm as per voc
-        challenge prior to voc2010
-
-        Arguments:
-            output(FloatTensor[N, K])
-            target(FloatTensor[N, K])
-        Returns:
-            ap(FloatTensor[K])
-        """
-        prec, rec = cls.compute_precision_and_recall(output, target)
-        ap = torch.zeros(output.shape[1])
-        for k in range(output.shape[1]):
-            for t in torch.linspace(0, 1, 11):
-                inds = torch.nonzero(rec[:, k] >= t).squeeze()
-                if inds.numel():
-                    ap[k] += (prec[inds, k].max() / 11)
+        with multiprocessing.Pool() as pool:
+            for idx, output in enumerate(pool.imap(
+                func=algorithm_handle,
+                iterable=[(prec[:, k], rec[:, k]) for k in range(output.shape[1])],
+                chunksize=chunksize
+            )):
+                ap[idx] = output
+        
         return ap
 
     @staticmethod
-    def compute_precision_and_recall(output, target, ep=1e-8):
+    def compute_precision_and_recall(output, target, eps=1e-8):
         """
         Arguments:
             output(FloatTensor[N, K])
             target(FloatTensor[N, K])
-            ep(float): A small constant to avoid division by zero
+            eps(float): A small constant to avoid division by zero
         Returns:
             prec(FloatTensor[N, K])
             rec(FloatTensor[N, K])
         """
+        # Force data type
+        output = output.float(); target = target.float()
         order = output.argsort(0, descending=True)
         tp = target[
             order,
@@ -218,7 +242,7 @@ class AveragePrecisionMeter:
         prec = tp / (tp + fp)
         # NOTE: The insignificant constant could potentially result in 100%
         # recall being unreachable. Be cautious about its magnitude.
-        rec = tp / (target.sum(0) + ep)
+        rec = tp / (target.sum(0) + eps)
         return prec, rec
 
     def append(self, output, target):
@@ -266,4 +290,5 @@ class AveragePrecisionMeter:
         ], 0)
         self.reset(keep_old=True)
 
-        return self._eval_alg(self._output, self._target)
+        return self.compute_ap(output=self._output, target=self._target,
+            algorithm=self._algorithm, chunksize=self._chunksize)
