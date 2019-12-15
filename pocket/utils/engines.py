@@ -205,20 +205,21 @@ class LearningEngine(State):
     def _save_checkpoint(self):
         if not os.path.exists(self._cache_dir):
             os.mkdir(self._cache_dir)
-        # Make a copy of the network and relocate to cpu
-        net_copy = copy.deepcopy(self._state.net.module).cpu() if self._multigpu \
-            else copy.deepcopy(self._state.net).cpu()
-        # Make a copy of the optimizer and relocate to cpu
-        optim_copy = copy.deepcopy(self._state.optimizer)
-        for state in optim_copy.state.values():
-            for k, v in state.items():
-                if isinstance(v, torch.Tensor):
-                    state[k] = v.cpu()
+        # Make a copy of the network parameters and relocate to cpu
+        model_state_dict = \
+            self._state.net.module.state_dict().copy() if self._multigpu \
+            else self._state.net.state_dict().copy()
+        for k in model_state_dict:
+            model_state_dict[k] = model_state_dict[k].cpu()
+        # Make a copy of the optimizer parameters and relocate to cpu
+        optim_state_dict = self._state.optimizer.state_dict().copy()
+        for k in optim_state_dict:
+            optim_state_dict[k] = optim_state_dict[k].cpu()
         torch.save({
             'iteration': self._state.iteration,
             'epoch': self._state.epoch,
-            'model_state_dict': net_copy.state_dict(),
-            'optim_state_dict': optim_copy.state_dict()
+            'model_state_dict': model_state_dict,
+            'optim_state_dict': optim_state_dict
             }, os.path.join(self._cache_dir, 'ckpt_{:05d}_{:02d}.pt'.\
                     format(self._state.iteration, self._state.epoch)))
 
