@@ -70,11 +70,10 @@ class NumericalMeter(Meter):
     VALID_TYPES = [int, float]
     
     def __init__(self, x=None):
-        self._list = x if x is not None \
-            else list()
+        x = x if x is not None else list()
         for item in x:
-            assert type(item) in self.VALID_TYPES, \
-                "Given list contains non-numerical element {}".format(item)
+            if type(item) not in self.VALID_TYPES:
+                raise TypeError("Given list contains non-numerical element {}".format(item))
         super().__init__(x)
 
     def append(self, x):
