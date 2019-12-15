@@ -93,6 +93,7 @@ class LearningEngine(State):
             ):
 
         super(LearningEngine, self).__init__()
+        self._dawn = time.time()
 
         self._device = torch.device('cuda') if torch.cuda.is_available() \
             else torch.device('cpu')
@@ -325,8 +326,9 @@ class MultiClassClassificationEngine(LearningEngine):
             total += len(pred)
         elapsed = time.time() - timestamp
 
-        print("=> Validation\n"
+        print("=> Validation (+{:.2f}s)\n"
             "Epoch: {} | Acc.: {:.4f}[{}/{}] | Loss: {:.4f} | Time: {:.2f}s\n".format(
+                time.time() - self._dawn,
                 self._state.epoch, correct / total, correct, total,
                 running_loss.mean(), elapsed
             ))
@@ -340,8 +342,9 @@ class MultiClassClassificationEngine(LearningEngine):
  
     def _on_end_epoch(self):
         super()._on_end_epoch()
-        print("\n=> Training\n"
+        print("\n=> Training (+{:.2f}s)\n"
             "Epoch: {} | Acc.: {:.4f}[{}/{}]".format(
+                time.time() - self._dawn,
                 self._state.epoch,
                 self._state.correct / self._state.total, self._state.correct, self._state.total
             ))
@@ -477,8 +480,9 @@ class MultiLabelClassificationEngine(LearningEngine):
         map_ = ap.eval().mean().item()
         elapsed = time.time() - timestamp
 
-        print("=> Validation\n"
+        print("=> Validation (+{:.2f}s)\n"
             "Epoch: {} | mAP: {:.4f} | Loss: {:.4f} | Time: {:.2f}s\n".format(
+                time.time() - self._dawn,
                 self._state.epoch, map_,
                 running_loss.mean(), elapsed
             ))
@@ -494,8 +498,9 @@ class MultiLabelClassificationEngine(LearningEngine):
         timestamp = time.time()
         map_ = self._state.ap.eval().mean().item()
         elapsed = time.time() - timestamp
-        print("\n=> Training\n"
+        print("\n=> Training (+{:.2f}s)\n"
             "Epoch: {} | mAP: {:.4f} | Time(eval): {:.2f}s".format(
+                time.time() - self._dawn,
                 self._state.epoch,
                 map_, elapsed
             ))
