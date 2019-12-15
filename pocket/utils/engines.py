@@ -314,7 +314,7 @@ class MultiClassClassificationEngine(LearningEngine):
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
-            batch = [item.to(self._device) for item in batch]
+            batch = [self._relocate_to_device(item) for item in batch]
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
@@ -467,7 +467,7 @@ class MultiLabelClassificationEngine(LearningEngine):
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
-            batch = [item.to(self._device) for item in batch]
+            batch = [self._relocate_to_device(item) for item in batch]
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
