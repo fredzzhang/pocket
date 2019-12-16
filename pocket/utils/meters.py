@@ -195,12 +195,12 @@ class AveragePrecisionMeter:
         """
         prec, rec = cls.compute_precision_and_recall(output, target)
         ap = torch.zeros(output.shape[1])
-        chunksize = int(output.shape[1] / multiprocessing.cpu_count()) if chunksize == -1 \
-            else chunksize
         # This is a simple fix
         # TODO: Look into Error24 "Too many open files"
         nproc = min(multiprocessing.cpu_count(), 8)
-        
+        chunksize = max(1, int(output.shape[1] / nproc)) if chunksize == -1 \
+            else chunksize
+       
         if algorithm == 'INT':
             algorithm_handle = cls.compute_per_class_ap_with_interpolation
         elif algorithm == '11P':
