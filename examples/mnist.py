@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     # Sample output
     """
-    => Validation
+    => Validation (+5.13s)
     Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 2.35s
 
     [Ep.][Iter.]: [1][100] | Loss: 2.2971 | Time[Data][Iter.]: [2.9884s][2.8512s]
@@ -55,8 +55,8 @@ if __name__ == '__main__':
     [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data][Iter.]: [0.2949s][2.9972s]
     [Ep.][Iter.]: [1][400] | Loss: 2.0143 | Time[Data][Iter.]: [0.2578s][2.4794s]
 
-    => Training
+    => Training (+17.66s)
     Epoch: 1 | Acc.: 0.3181[19090/60000]
-    => Validation
+    => Validation (+19.43s)
     Epoch: 1 | Acc.: 0.7951[7951/10000] | Loss: 0.7701 | Time: 2.04s
     """
