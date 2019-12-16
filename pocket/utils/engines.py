@@ -118,7 +118,7 @@ class LearningEngine(State):
             for state in self._state.optimizer.state.values():
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
-                        state[k] = v.to(self._state.device)
+                        state[k] = v.to(self._device)
         self._state.epoch = 0
         self._state.iteration = 0
 
@@ -212,15 +212,17 @@ class LearningEngine(State):
             else self._state.net.state_dict().copy()
         for k in model_state_dict:
             model_state_dict[k] = model_state_dict[k].cpu()
-        # Make a copy of the optimizer parameters and relocate to cpu
-        optim_state_dict = self._state.optimizer.state_dict().copy()
-        for k in optim_state_dict:
-            optim_state_dict[k] = optim_state_dict[k].cpu()
+        # Make a copy of the optimizer and relocate to cpu
+        optim_copy = copy.deepcopy(self._state.optimizer)
+        for state in optim_copy.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(self._device)
         torch.save({
             'iteration': self._state.iteration,
             'epoch': self._state.epoch,
             'model_state_dict': model_state_dict,
-            'optim_state_dict': optim_state_dict
+            'optim_state_dict': optim_copy.state_dict()
             }, os.path.join(self._cache_dir, 'ckpt_{:05d}_{:02d}.pt'.\
                     format(self._state.iteration, self._state.epoch)))
 
@@ -285,7 +287,7 @@ class MultiClassClassificationEngine(LearningEngine):
         >>> # saved model parameters, optimizer statistics and progress
         >>> engine(1)
 
-        => Validation
+        => Validation (+5.13s)
         Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 2.35s
 
         [Ep.][Iter.]: [1][100] | Loss: 2.2971 | Time[Data][Iter.]: [2.9884s][2.8512s]
@@ -293,10 +295,10 @@ class MultiClassClassificationEngine(LearningEngine):
         [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data][Iter.]: [0.2949s][2.9972s]
         [Ep.][Iter.]: [1][400] | Loss: 2.0143 | Time[Data][Iter.]: [0.2578s][2.4794s]
 
-        => Training
+        => Training (+17.66s)
         Epoch: 1 | Acc.: 0.3181[19090/60000]
-        => Validation
-        Epoch: 1 | Acc.: 0.7951[7951/10000] | Loss: 0.7701 | Time: 2.04s
+        => Validation (+19.43s)
+        Epoch: 1 | Acc.: 0.7950[7950/10000] | Loss: 0.7701 | Time: 2.04s
     """
     def __init__(self,
             net,
@@ -440,17 +442,17 @@ class MultiLabelClassificationEngine(LearningEngine):
         >>> # saved model parameters, optimizer statistics and progress
         >>> engine(1)
 
-        => Validation
-        Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 95.99s
+        => Validation (+57.05s)
+        Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 54.01s
 
-        [Ep.][Iter.]: [1][50] | Loss: 0.3523 | Time[Data][Iter.]: [56.7899s][0.7396s]
-        [Ep.][Iter.]: [1][100] | Loss: 0.2589 | Time[Data][Iter.]: [19.1067s][0.0108s]
-        [Ep.][Iter.]: [1][150] | Loss: 0.2540 | Time[Data][Iter.]: [19.3830s][0.0100s]
+        [Ep.][Iter.]: [1][50] | Loss: 0.3601 | Time[Data][Iter.]: [26.5870s][0.9164s]
+        [Ep.][Iter.]: [1][100] | Loss: 0.2634 | Time[Data][Iter.]: [19.1039s][0.0111s]
+        [Ep.][Iter.]: [1][150] | Loss: 0.2532 | Time[Data][Iter.]: [19.2337s][0.0104s]
 
-        => Training
-        Epoch: 1 | mAP: 0.0972 | Time(eval): 8.93s
-        => Validation
-        Epoch: 1 | mAP: 0.1309 | Loss: 0.3584 | Time: 50.94s
+        => Training (+195.74s)
+        Epoch: 1 | mAP: 0.0925 | Time(eval): 2.35s
+        => Validation (+238.64s)
+        Epoch: 1 | mAP: 0.1283 | Loss: 0.4617 | Time: 42.90s
     """
     def __init__(self,
             net,
