@@ -76,53 +76,53 @@ if __name__ == '__main__':
 
     # Sample output
     """
-    => Validation
-    Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 95.99s
+    => Validation (+57.05s)
+    Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 54.01s
 
-    [Ep.][Iter.]: [1][50] | Loss: 0.3523 | Time[Data][Iter.]: [56.7899s][0.7396s]
-    [Ep.][Iter.]: [1][100] | Loss: 0.2589 | Time[Data][Iter.]: [19.1067s][0.0108s]
-    [Ep.][Iter.]: [1][150] | Loss: 0.2540 | Time[Data][Iter.]: [19.3830s][0.0100s]
+    [Ep.][Iter.]: [1][50] | Loss: 0.3601 | Time[Data][Iter.]: [26.5870s][0.9164s]
+    [Ep.][Iter.]: [1][100] | Loss: 0.2634 | Time[Data][Iter.]: [19.1039s][0.0111s]
+    [Ep.][Iter.]: [1][150] | Loss: 0.2532 | Time[Data][Iter.]: [19.2337s][0.0104s]
 
-    => Training
-    Epoch: 1 | mAP: 0.0972 | Time(eval): 8.93s
-    => Validation
-    Epoch: 1 | mAP: 0.1309 | Loss: 0.3584 | Time: 50.94s
+    => Training (+195.74s)
+    Epoch: 1 | mAP: 0.0925 | Time(eval): 2.35s
+    => Validation (+238.64s)
+    Epoch: 1 | mAP: 0.1283 | Loss: 0.4617 | Time: 42.90s
 
-    [Ep.][Iter.]: [2][200] | Loss: 0.2420 | Time[Data][Iter.]: [69.6498s][0.8330s]
-    [Ep.][Iter.]: [2][250] | Loss: 0.2430 | Time[Data][Iter.]: [19.2637s][0.0091s]
-    [Ep.][Iter.]: [2][300] | Loss: 0.2355 | Time[Data][Iter.]: [19.4451s][0.0091s]
-    [Ep.][Iter.]: [2][350] | Loss: 0.2363 | Time[Data][Iter.]: [19.4421s][0.0110s]
+    [Ep.][Iter.]: [2][200] | Loss: 0.2417 | Time[Data][Iter.]: [30.7052s][0.8373s]
+    [Ep.][Iter.]: [2][250] | Loss: 0.2450 | Time[Data][Iter.]: [19.2139s][0.0101s]
+    [Ep.][Iter.]: [2][300] | Loss: 0.2337 | Time[Data][Iter.]: [19.2366s][0.0103s]
+    [Ep.][Iter.]: [2][350] | Loss: 0.2342 | Time[Data][Iter.]: [19.1734s][0.0101s]
 
-    => Training
-    Epoch: 2 | mAP: 0.1387 | Time(eval): 12.58s
-    => Validation
-    Epoch: 2 | mAP: 0.1518 | Loss: 0.2554 | Time: 49.55s
+    => Training (+360.82s)
+    Epoch: 2 | mAP: 0.1395 | Time(eval): 2.20s
+    => Validation (+404.11s)
+    Epoch: 2 | mAP: 0.1502 | Loss: 0.2780 | Time: 43.29s
 
-    [Ep.][Iter.]: [3][400] | Loss: 0.2318 | Time[Data][Iter.]: [18.9972s][0.8029s]
-    [Ep.][Iter.]: [3][450] | Loss: 0.2323 | Time[Data][Iter.]: [19.3416s][0.0094s]
-    [Ep.][Iter.]: [3][500] | Loss: 0.2275 | Time[Data][Iter.]: [19.4716s][0.0093s]
+    [Ep.][Iter.]: [3][400] | Loss: 0.2314 | Time[Data][Iter.]: [18.9970s][1.0269s]
+    [Ep.][Iter.]: [3][450] | Loss: 0.2296 | Time[Data][Iter.]: [19.1553s][0.0154s]
+    [Ep.][Iter.]: [3][500] | Loss: 0.2265 | Time[Data][Iter.]: [19.0785s][0.0121s]
 
-    => Training
-    Epoch: 3 | mAP: 0.1628 | Time(eval): 12.82s
-    => Validation
-    Epoch: 3 | mAP: 0.1717 | Loss: 0.2521 | Time: 52.35s
+    => Training (+525.67s)
+    Epoch: 3 | mAP: 0.1695 | Time(eval): 2.36s
+    => Validation (+568.71s)
+    Epoch: 3 | mAP: 0.1742 | Loss: 0.2734 | Time: 43.04s
 
-    [Ep.][Iter.]: [4][550] | Loss: 0.2299 | Time[Data][Iter.]: [19.1360s][0.8748s]
-    [Ep.][Iter.]: [4][600] | Loss: 0.2243 | Time[Data][Iter.]: [19.4029s][0.0122s]
-    [Ep.][Iter.]: [4][650] | Loss: 0.2250 | Time[Data][Iter.]: [19.3620s][0.0105s]
-    [Ep.][Iter.]: [4][700] | Loss: 0.2226 | Time[Data][Iter.]: [19.4091s][0.0133s]
+    [Ep.][Iter.]: [4][550] | Loss: 0.2273 | Time[Data][Iter.]: [19.0480s][0.8987s]
+    [Ep.][Iter.]: [4][600] | Loss: 0.2213 | Time[Data][Iter.]: [19.2186s][0.0124s]
+    [Ep.][Iter.]: [4][650] | Loss: 0.2243 | Time[Data][Iter.]: [19.3367s][0.0135s]
+    [Ep.][Iter.]: [4][700] | Loss: 0.2223 | Time[Data][Iter.]: [19.2185s][0.0146s]
 
-    => Training
-    Epoch: 4 | mAP: 0.1865 | Time(eval): 8.82s
-    => Validation
-    Epoch: 4 | mAP: 0.1832 | Loss: 0.2540 | Time: 48.73s
+    => Training (+690.65s)
+    Epoch: 4 | mAP: 0.1898 | Time(eval): 2.47s
+    => Validation (+734.37s)
+    Epoch: 4 | mAP: 0.1841 | Loss: 0.2249 | Time: 43.72s
 
-    [Ep.][Iter.]: [5][750] | Loss: 0.2219 | Time[Data][Iter.]: [19.2582s][0.7557s]
-    [Ep.][Iter.]: [5][800] | Loss: 0.2180 | Time[Data][Iter.]: [19.3472s][0.0093s]
-    [Ep.][Iter.]: [5][850] | Loss: 0.2195 | Time[Data][Iter.]: [19.4909s][0.0093s]
+    [Ep.][Iter.]: [5][750] | Loss: 0.2218 | Time[Data][Iter.]: [18.9964s][1.0675s]
+    [Ep.][Iter.]: [5][800] | Loss: 0.2164 | Time[Data][Iter.]: [19.2012s][0.0105s]
+    [Ep.][Iter.]: [5][850] | Loss: 0.2185 | Time[Data][Iter.]: [19.2428s][0.0108s]
 
-    => Training
-    Epoch: 5 | mAP: 0.2040 | Time(eval): 12.79s
-    => Validation
-    Epoch: 5 | mAP: 0.1996 | Loss: 0.2434 | Time: 49.10s
+    => Training (+856.15s)
+    Epoch: 5 | mAP: 0.2091 | Time(eval): 2.36s
+    => Validation (+899.38s)
+    Epoch: 5 | mAP: 0.2131 | Loss: 0.2384 | Time: 43.23s
     """
