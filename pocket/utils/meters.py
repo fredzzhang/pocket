@@ -195,11 +195,16 @@ class AveragePrecisionMeter:
         """
         prec, rec = cls.compute_precision_and_recall(output, target)
         ap = torch.zeros(output.shape[1])
-        # This is a simple fix
-        # TODO: Look into Error24 "Too many open files"
-        nproc = min(multiprocessing.cpu_count(), 8)
-        chunksize = max(1, int(output.shape[1] / nproc)) if chunksize == -1 \
-            else chunksize
+        # Use the logic from pool._map_async to compute chunksize
+        # https://github.com/python/cpython/blob/master/Lib/multiprocessing/pool.py
+        # NOTE: Inappropriate chunksize will cause [Errno 24]Too many open files
+        # Make changes with caution
+        if chunksize == -1:
+            chunksize, extra = divmod(
+                    output.shape[1],
+                    multiprocessing.cpu_count() * 4)
+            if extra:
+                chunksize += 1
        
         if algorithm == 'INT':
             algorithm_handle = cls.compute_per_class_ap_with_interpolation
@@ -210,7 +215,7 @@ class AveragePrecisionMeter:
         else:
             raise ValueError("Unknown algorithm option {}.".format(algorithm))
 
-        with multiprocessing.Pool(nproc) as pool:
+        with multiprocessing.Pool() as pool:
             for idx, output in enumerate(pool.imap(
                 func=algorithm_handle,
                 iterable=[(prec[:, k], rec[:, k]) for k in range(output.shape[1])],
