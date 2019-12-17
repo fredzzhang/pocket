@@ -14,7 +14,13 @@ import torch
 from torch.utils.data import DataLoader
 
 from ..data import DataDict
-from ..meters import NumericalMeter, HandyTimer, AveragePrecisionMeter
+from ..utils import NumericalMeter, HandyTimer, AveragePrecisionMeter
+
+__all__ = [
+    'LearningEngine',
+    'MultiClassClassificationEngine',
+    'MultiLabelClassificationEngine'
+]
 
 class State:
     """
@@ -89,10 +95,9 @@ class LearningEngine(State):
             },
             verbal=True,
             print_interval=100,
-            cache_dir='./checkpoints'
-            ):
+            cache_dir='./checkpoints'):
 
-        super(LearningEngine, self).__init__()
+        super().__init__()
         self._dawn = time.time()
 
         self._device = torch.device('cuda') if torch.cuda.is_available() \
@@ -112,7 +117,7 @@ class LearningEngine(State):
         self._state.net = torch.nn.DataParallel(net).to(self._device) if self._multigpu \
             else net.to(self._device)
         # Initialize optimizer
-        net_params = [p for p in self._state.net.parameters() if p.requies_grad]
+        net_params = [p for p in self._state.net.parameters() if p.requires_grad]
         self._state.optimizer = torch.optim.SGD(net_params, **optim_params)\
             if optim == 'SGD' \
             else torch.optim.Adam(net_params, **optim_params)
@@ -175,7 +180,7 @@ class LearningEngine(State):
         self._state.epoch += 1
 
     def _on_end_epoch(self):
-        self._save_checkpoint()
+        self.save_checkpoint()
         if self._lr_scheduler is not None:
             self._lr_scheduler.step()
 
@@ -208,7 +213,8 @@ class LearningEngine(State):
         self._state.t_data.reset()
         self._state.running_loss.reset()
 
-    def _save_checkpoint(self):
+    def save_checkpoint(self):
+        """Save a checkpoint of the model state"""
         if not os.path.exists(self._cache_dir):
             os.mkdir(self._cache_dir)
         # Make a copy of the network parameters and relocate to cpu
@@ -229,6 +235,12 @@ class LearningEngine(State):
             'model_state_dict': model_state_dict,
             'optim_state_dict': optim_copy.state_dict()
             }, os.path.join(self._cache_dir, 'ckpt_{:05d}_{:02d}.pt'.\
+                    format(self._state.iteration, self._state.epoch)))
+
+    def save_snapshot(self):
+        """Save a snapshot of the engine state"""
+        torch.save(self.state_dict(),
+            os.path.join(self._cache_dir, 'snapshot_{:05d}_{:02d}.spst'.\
                     format(self._state.iteration, self._state.epoch)))
 
 class MultiClassClassificationEngine(LearningEngine):
