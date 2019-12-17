@@ -45,14 +45,13 @@ class State:
         else:
             raise KeyError("Inexistent key {}".format(key))
 
-    def update_state_key(self, key, val):
-        """Override a specific key in the state"""
-        if key in self._state:
-            assert type(val) == type(self._state[key]), \
-                'Attemp to override state key \'{}\' of type {} by type {}'.format(key, type(self._state[key]), type(val))
-            self._state[key] = val
-        else:
-            raise KeyError("Inexistent key {}".format(key))
+    def update_state_key(self, **kwargs):
+        """Override specific keys in the state"""
+        for k in kwargs:
+            if k in self._state:
+                self._state[k] = kwargs[k]
+            else:
+                raise KeyError("Inexistent key {}".format(k))
 
 class LearningEngine(State):
     r"""
@@ -78,24 +77,10 @@ class LearningEngine(State):
         cache_dir(str): Directory to save checkpoints
     """
     def __init__(self,
-            net,
-            criterion,
-            train_loader,
-            optim='SGD',
-            optim_params={
-                'lr': 0.001,
-                'momentum': 0.9,
-                'weight_decay': 5e-4
-            },
-            optim_state_dict=None,
-            lr_scheduler=False,
-            lr_sched_params={
-                'milestones': [50,100],
-                'gamma': 0.1
-            },
-            verbal=True,
-            print_interval=100,
-            cache_dir='./checkpoints'):
+            net, criterion, train_loader,
+            optim='SGD', optim_params=None, optim_state_dict=None,
+            lr_scheduler=False, lr_sched_params=None,
+            verbal=True, print_interval=100, cache_dir='./checkpoints'):
 
         super().__init__()
         self._dawn = time.time()
@@ -118,6 +103,11 @@ class LearningEngine(State):
             else net.to(self._device)
         # Initialize optimizer
         net_params = [p for p in self._state.net.parameters() if p.requires_grad]
+        optim_params = {
+                'lr': 0.001,
+                'momentum': 0.9,
+                'weight_decay': 5e-4
+            } if optim_params is None else optim_params
         self._state.optimizer = torch.optim.SGD(net_params, **optim_params)\
             if optim == 'SGD' \
             else torch.optim.Adam(net_params, **optim_params)
@@ -133,6 +123,10 @@ class LearningEngine(State):
         self._state.iteration = 0
 
         # Initialize learning rate scheduler
+        lr_sched_params = {
+                'milestones': [50,100],
+                'gamma': 0.1
+            } if lr_sched_params is None else lr_sched_params
         self._lr_scheduler = None if not lr_scheduler \
             else torch.optim.lr_scheduler.MultiStepLR(self._state.optimizer, **lr_sched_params)
 
