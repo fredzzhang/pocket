@@ -105,12 +105,17 @@ class LearningEngine(State):
         self._cache_dir = cache_dir
 
         # Set flags for GPU
-        torch.backends.cudnn.benchmark = train_loader.pin_memory = torch.cuda.is_available()
+        torch.backends.cudnn.benchmark = torch.cuda.is_available()
+        if hasattr(train_loader, 'pin_memory'):
+            train_loader.pin_memory = torch.cuda.is_available()
 
         self._state.net = torch.nn.DataParallel(net).to(self._device) if self._multigpu \
             else net.to(self._device)
-        self._state.optimizer = torch.optim.SGD(self._state.net.parameters(), **optim_params) if optim == 'SGD' \
-            else torch.optim.Adam(self._state.net.parameters(), **optim_params)
+        # Initialize optimizer
+        net_params = [p for p in self._state.net.parameters() if p.requies_grad]
+        self._state.optimizer = torch.optim.SGD(net_params, **optim_params)\
+            if optim == 'SGD' \
+            else torch.optim.Adam(net_params, **optim_params)
         # Load optimzer state dict if provided
         if optim_state_dict is not None:
             self._state.optimizer.load_state_dict(optim_state_dict)
@@ -308,7 +313,8 @@ class MultiClassClassificationEngine(LearningEngine):
             **kwargs):
 
         super().__init__(net, criterion, train_loader, **kwargs)
-        val_loader.pin_memory = torch.cuda.is_available()
+        if hasattr(val_loader, 'pin_memory'):
+            val_loader.pin_memory = torch.cuda.is_available()
         self._val_loader = val_loader
            
     def _validate(self):
@@ -463,7 +469,8 @@ class MultiLabelClassificationEngine(LearningEngine):
             **kwargs):
         
         super().__init__(net, criterion, train_loader, **kwargs)
-        val_loader.pin_memory = torch.cuda.is_available()
+        if hasattr(val_loader, 'pin_memory'):
+            val_loader.pin_memory = torch.cuda.is_available()
         self._val_loader = val_loader
         self._ap_alg = ap_algorithm
 
