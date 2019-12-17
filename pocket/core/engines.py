@@ -31,7 +31,7 @@ class State:
 
     def state_dict(self):
         """Return the state dict"""
-        return self._state
+        return self._state.copy()
 
     def load_state_dict(self, dict_in):
         """Load state from external dict"""
