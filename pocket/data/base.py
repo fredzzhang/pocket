@@ -30,8 +30,8 @@ class DataDict(dict):
         >>> person.sex = 'male'
         >>> person.save('./person.pkl', 'w')
     """
-    def __init__(self, data_dict={}):
-        """Constructor method"""
+    def __init__(self, data_dict=None):
+        data_dict = dict() if data_dict is None else data_dict
         super(DataDict, self).__init__(**data_dict)
 
     def __getattr__(self, name):
