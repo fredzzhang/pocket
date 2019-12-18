@@ -14,6 +14,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from ..data import DataDict
+from ..ops import relocate_to_cuda
 from ..utils import NumericalMeter, HandyTimer, AveragePrecisionMeter
 
 __all__ = [
@@ -165,20 +166,6 @@ class LearningEngine(State):
                 
             self._on_end_epoch()
 
-    def _relocate_to_device(self, x):
-        if type(x) is torch.Tensor:
-            return x.to(self._device)
-        elif type(x) is list:
-            # Assume input data is a list of tensors
-            return [item.to(self._device) for item in x]
-        elif type(x) is dict:
-            # Assume input data is a dictionary of tensors
-            for key in x:
-                x[key] = x[key].to(self._device)
-            return x
-        else:
-            raise TypeError('Unsupported type of data {}'.format(type(x)))
-
     def _on_start_epoch(self):
         self._state.epoch += 1
 
@@ -189,8 +176,8 @@ class LearningEngine(State):
 
     def _on_start_iteration(self):
         self._state.iteration += 1
-        self._state.input = [self._relocate_to_device(item) for item in self._state.input]
-        self._state.target = self._relocate_to_device(self._state.target)
+        self._state.input = relocate_to_cuda(self._state.input, self._device)
+        self._state.target = relocate_to_cuda(self._state.target, self._device)
 
     def _on_end_iteration(self):
         if self._verbal and self._state.iteration % self._print_interval == 0:
@@ -339,7 +326,7 @@ class MultiClassClassificationEngine(LearningEngine):
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
-            batch = [self._relocate_to_device(item) for item in batch]
+            batch = relocate_to_cuda(batch, self._device)
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
@@ -495,7 +482,7 @@ class MultiLabelClassificationEngine(LearningEngine):
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
-            batch = [self._relocate_to_device(item) for item in batch]
+            batch = relocate_to_cuda(batch, self._device)
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
