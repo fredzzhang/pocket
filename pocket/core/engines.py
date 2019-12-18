@@ -57,11 +57,18 @@ class LearningEngine(State):
     r"""
     Base class for learning engine
 
+    By default, all available cuda devices will be used. To disable the usage or
+    manually select devices, use the following command:
+
+        CUDA_VISIBLE_DEVICES=, python YOUR_SCRIPT.py
+    or
+        CUDA_VISIBLE_DEVICES=0,1 python YOUR_SCRIPT.py
+
     Arguments:
 
     [REQUIRED ARGS]
         net(Module): The network to be trained
-        criterion(Module): Loss function
+        criterion(callable): Loss function
         train_loader(iterable): Dataloader for training set, with batch input in the
             format [INPUT_1, ..., INPUT_N, LABELS]. Each element should take one of 
             the following forms: Tensor, list[Tensor], dict[Tensor]
@@ -88,7 +95,8 @@ class LearningEngine(State):
         self._device = torch.device('cuda') if torch.cuda.is_available() \
             else torch.device('cpu')
         self._multigpu = torch.cuda.device_count() > 1
-        self._criterion = criterion.to(self._device)
+        self._criterion =  criterion if not isinstance(criterion, torch.nn.Module) \
+            else criterion.to(self._device)
         self._train_loader = train_loader
         self._verbal = verbal
         self._print_interval = print_interval
@@ -103,11 +111,12 @@ class LearningEngine(State):
             else net.to(self._device)
         # Initialize optimizer
         net_params = [p for p in self._state.net.parameters() if p.requires_grad]
-        optim_params = {
-                'lr': 0.001,
-                'momentum': 0.9,
-                'weight_decay': 5e-4
-            } if optim_params is None else optim_params
+        if optim_params is None:
+            optim_params = {
+                    'lr': 0.001,
+                    'momentum': 0.9,
+                    'weight_decay': 5e-4
+            } if optim == 'SGD' else {'lr': 0.001, 'weight_decay': 5e-4}
         self._state.optimizer = torch.optim.SGD(net_params, **optim_params)\
             if optim == 'SGD' \
             else torch.optim.Adam(net_params, **optim_params)
