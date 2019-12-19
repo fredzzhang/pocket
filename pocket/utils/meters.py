@@ -11,36 +11,40 @@ import time
 import torch
 import multiprocessing
 
+from collections import deque
+
 class Meter:
     """
     Base class
     """
-    def __init__(self, x=None):
-        self._list = x if x is not None \
-            else list()
+    def __init__(self, maxlen=None):
+        self._deque = deque(maxlen=maxlen)
+        self._maxlen = maxlen
 
     def __len__(self):
-        return len(self._list)
+        return len(self._deque)
 
     def __iter__(self):
-        return iter(self._list)
+        return iter(self._deque)
 
     def __getitem__(self, i):
-        return self._list[i]
+        return self._deque[i]
 
     def __repr__(self):
         reprstr = self.__class__.__name__ + '('
-        reprstr += str(self._list)
+        reprstr += str([item for item in self._deque])
+        reprstr += ', maxlen='
+        reprstr += str(self._maxlen)
         reprstr += ')'
         return reprstr
 
     def reset(self):
-        """Reset meter"""
-        self._list = []
+        """Reset the meter"""
+        self._deque.clear()
 
     def append(self, x):
         """Append an element"""
-        self._list.append(x)
+        self._deque.append(x)
 
     def sum(self):
         """Return the sum of all elements"""
@@ -61,7 +65,7 @@ class Meter:
     @property
     def items(self):
         """Return the content"""
-        return self._list
+        return [item for item in self._deque]
 
 class NumericalMeter(Meter):
     """
@@ -69,12 +73,8 @@ class NumericalMeter(Meter):
     """
     VALID_TYPES = [int, float]
     
-    def __init__(self, x=None):
-        x = x if x is not None else list()
-        for item in x:
-            if type(item) not in self.VALID_TYPES:
-                raise TypeError("Given list contains non-numerical element {}".format(item))
-        super().__init__(x)
+    def __init__(self, maxlen=None):
+        super().__init__(maxlen=maxlen)
 
     def append(self, x):
         if type(x) in self.VALID_TYPES:
@@ -83,23 +83,23 @@ class NumericalMeter(Meter):
             raise TypeError("Given element \'{}\' is not a numeral".format(x))
 
     def sum(self):
-        return sum(self._list)
+        return sum(self._deque)
 
     def mean(self):
-        return sum(self._list) / len(self._list)
+        return sum(self._deque) / len(self._deque)
 
     def max(self):
-        return max(self._list)
+        return max(self._deque)
 
     def min(self):
-        return min(self._list)
+        return min(self._deque)
 
 class HandyTimer(NumericalMeter):
     """
     A timer class that tracks a sequence of time
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, maxlen=None):
+        super().__init__(maxlen=maxlen)
 
     def __enter__(self):
         self._timestamp = time.time()
