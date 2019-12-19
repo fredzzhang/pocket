@@ -9,6 +9,7 @@ Australian Centre for Robotic Vision
 
 import os
 import time
+import copy
 import torch
 import torch.utils.data as Tdata
 import torch.distributed as dist
@@ -16,9 +17,39 @@ import torch.multiprocessing as mp
 
 from ..data import DataDict
 from ..ops import relocate_to_cuda
+from ..utils import SyncedNumericalMeter
 
 class DistributedLearningEngine:
     r"""
+    Distributed learning engine based on torch.distributed
+
+    Arguments:
+
+    [REQUIRED ARGS]
+        net(Module): The network to be trained
+        criterion(callable): Loss function
+        train_loader(iterable): Dataloader for training set, with batch input in the
+            format [INPUT_1, ..., INPUT_N, LABELS]. Each element should take one of 
+            the following forms: Tensor, list[Tensor], dict[Tensor]. 
+            
+        NOTE: The dataloader passed into the engine is merely used as a container of
+        parameters. The actual batch size used for distributed dataloader will be 
+        divided by the number of subprocesses. Sampler or batch sampler will
+        be ignored automatically.
+
+    [OPTIONAL ARGS]
+        optim(str): Optimizer to be used. Choose between 'SGD' and 'Adam'
+        optim_params(dict): Parameters for the selected optimizer
+        optim_state_dict(dict): Optimizer state dict to be loaded
+        lr_scheduler(bool): If True, use MultiStepLR as the learning rate scheduler
+        lr_sched_params(dict): Parameters for the learning rate scheduler
+        verbal(bool): If True, print statistics every fixed interval
+        print_interval(int): Number of iterations to print statistics
+        cache_dir(str): Directory to save checkpoints
+        backend(str): A choice between 'nccl', 'gloo' and 'mpi'
+        init_method(str): URL specifying how to initialize the process group
+        master_addr(str): IP address for master process
+        master_port(str): Communication port for master process
     """
     def __init__(self, 
             net, criterion, train_loader,
@@ -71,6 +102,8 @@ class DistributedLearningEngine:
                     'weight_decay': 5e-4
             } if optim == 'SGD' else {'lr': 0.001, 'weight_decay': 5e-4}
         net_params = [p for p in self._replicas[0].parameters() if p.requires_grad]
+        # Initialize optimizer for the model replica to be assigned to master process
+        # Other model replicas will be in sync during forward pass
         self._optimizer = torch.optim.SGD(net_params, **optim_params)\
             if optim == 'SGD' \
             else torch.optim.Adam(net_params, **optim_params)
@@ -82,18 +115,6 @@ class DistributedLearningEngine:
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
                         state[k] = v.cuda(self._devices[0])
-        # Initialize optimizers for every model replica
-        # self._optimizers = []
-        # for idx, replica in enumerate(self._replicas):
-        #     params_with_grad = [p for p in replica.parameters() if p.requires_grad]
-        #     each_optim = optim_constructor(params_with_grad, **optim_params)
-        #     if optim_state_dict is not None:
-        #         each_optim.load_state_dict(optim_state_dict)
-        #         # Relocate optimizer state to designated deivce
-        #         for state in each_optim.state.values():
-        #             for k, v in state.items():
-        #                 if isinstance(v, torch.Tensor):
-        #                     state[k] = v.cuda(idx)
 
         # Initialize learning rate scheduler
         lr_sched_params = {
@@ -103,7 +124,6 @@ class DistributedLearningEngine:
         self._lr_scheduler = None if not lr_scheduler \
             else torch.optim.lr_scheduler.MultiStepLR(self._optimizer, 
                 **lr_sched_params)
-        # Initialize logger
 
         self.epoch = 0
         self.iteration = 0
@@ -136,44 +156,57 @@ class DistributedLearningEngine:
 
     @classmethod
     def _main(cls, rank, n, epoch, iteration,
-            init_process_group,
+            initialize,
             replicas, criterion, train_loader,
             optimizer, lr_scheduler,
             verbal, print_interval, cache_dir):
         # Combine all state variables
         state = DataDict({
-            'rank': rank,
-            'epoch': epoch,
-            'iteration': iteration,
-            'net': replicas[rank],
-            'criterion': criterion,
-            'train_loader': train_loader,
-            'optimizer': optimizer,
-            'lr_scheduler': lr_scheduler,
-            'verbal': verbal,
-            'print_interval': print_interval,
-            'cache_dir': cache_dir
+            'rank': rank, 'epoch': epoch, 'iteration': iteration,
+            'net': replicas[rank], 'criterion': criterion, 'train_loader': train_loader,
+            'optimizer': optimizer, 'lr_scheduler': lr_scheduler,
+            'verbal': verbal, 'print_interval': print_interval, 'cache_dir': cache_dir
         })
-        init_process_group(rank)
+        # Initialize process group
+        initialize(rank)
+
+        state.running_loss = SyncedNumericalMeter(maxlen=print_interval)
+        # Initialize timers
+        state.t_data = SyncedNumericalMeter(maxlen=print_interval)
+        state.t_iteration = SyncedNumericalMeter(maxlen=print_interval)
+        # Training loop
         for _ in range(n):
             cls._on_start_epoch(state)
+            timestamp = time.time()
             for batch in train_loader:
                 state.input = batch[:-1]
                 state.target = batch[-1]
+                state.t_data.append(time.time() - timestamp)
+
                 cls._on_start_iteration(state)
+                # Force network mode
+                state.net.train()
                 cls._on_each_iteration(state)
+                state.running_loss.append(state.loss.item())
                 cls._on_end_iteration(state)
+                state.t_iteration.append(time.time() - timestamp)
+                timestamp = time.time()
+
             cls._on_end_epoch(state)
+        # Garbage collecting
         cls._cleanup()
 
     @staticmethod
     def _on_start_epoch(ctx):
         ctx.epoch += 1
 
-    @staticmethod
-    def _on_end_epoch(ctx):
-        if ctx.lr_scheduler is not None and ctx.rank == 0:
-            ctx.lr_scheduler.step()
+    @classmethod
+    def _on_end_epoch(cls, ctx):
+        if ctx.rank == 0:
+            # Save the model replica in master process
+            cls._save_checkpoint(ctx)
+            if ctx.lr_scheduler is not None:
+                ctx.lr_scheduler.step()
 
     @staticmethod
     def _on_start_iteration(ctx):
@@ -181,9 +214,10 @@ class DistributedLearningEngine:
         ctx.input = relocate_to_cuda(ctx.input, ctx.rank)
         ctx.target = relocate_to_cuda(ctx.target, ctx.rank)
 
-    @staticmethod
-    def _on_end_iteration(ctx):
-        pass
+    @classmethod
+    def _on_end_iteration(cls, ctx):
+        if ctx.verbal and ctx.iteration % ctx.print_interval == 0:
+            cls._print_statistics(ctx)
 
     @staticmethod
     def _on_each_iteration(ctx):
@@ -194,3 +228,42 @@ class DistributedLearningEngine:
         ctx.loss.backward()
         if ctx.rank == 0:
             ctx.optimizer.step()
+
+    @staticmethod
+    def _print_statistics(ctx):
+        loss = ctx.running_loss.mean()
+        time_iter = ctx.t_iteration.sum()
+        time_data = ctx.t_data.sum()
+        if ctx.rank == 0:
+            print("[Ep.][Iter.]: [{}][{}] | "
+                "Loss: {:.4f} | "
+                "Time[Data][Iter.]: [{:.4f}s][{:.4f}s]".format(
+                    ctx.epoch, ctx.iteration,
+                    loss, time_data, time_iter)
+            )
+        ctx.t_iteration.reset()
+        ctx.t_data.reset()
+        ctx.running_loss.reset()
+
+    @staticmethod
+    def _save_checkpoint(ctx):
+        """Save a checkpoint of the model state"""
+        if not os.path.exists(ctx.cache_dir):
+            os.mkdir(ctx.cache_dir)
+        # Make a copy of the network parameters and relocate to cpu
+        model_state_dict = ctx.net.module.state_dict().copy()
+        for k in model_state_dict:
+            model_state_dict[k] = model_state_dict[k].cpu()
+        # Make a copy of the optimizer and relocate to cpu
+        optim_copy = copy.deepcopy(ctx.optimizer)
+        for state in optim_copy.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.cpu()
+        torch.save({
+            'iteration': ctx.iteration,
+            'epoch': ctx.epoch,
+            'model_state_dict': model_state_dict,
+            'optim_state_dict': optim_copy.state_dict()
+            }, os.path.join(ctx.cache_dir, 'ckpt_{:05d}_{:02d}.pt'.\
+                    format(ctx.iteration, ctx.epoch)))
