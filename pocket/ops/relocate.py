@@ -36,12 +36,12 @@ def relocate_to_cuda(x, device):
     if type(x) is torch.Tensor:
         return x.cuda(device_id)
     elif type(x) is list:
-        return [relocate_to_cuda(item) for item in x]
+        return [relocate_to_cuda(item, device_id) for item in x]
     elif type(x) is tuple:
-        return (relocate_to_cuda(item) for item in x)
+        return (relocate_to_cuda(item, device_id) for item in x)
     elif type(x) is dict:
         for key in x:
-            x[key] = relocate_to_cuda(x[key])
+            x[key] = relocate_to_cuda(x[key], device_id)
         return x
     else:
         raise TypeError('Unsupported type of data {}'.format(type(x)))
