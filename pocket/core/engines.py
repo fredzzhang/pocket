@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 
 from ..data import DataDict
 from ..ops import relocate_to_cuda
-from ..utils import NumericalMeter, HandyTimer, AveragePrecisionMeter
+from ..utils import NumericalMeter, AveragePrecisionMeter
 
 __all__ = [
     'LearningEngine',
@@ -140,10 +140,10 @@ class LearningEngine(State):
         self._lr_scheduler = None if not lr_scheduler \
             else torch.optim.lr_scheduler.MultiStepLR(self._state.optimizer, **lr_sched_params)
 
-        self._state.running_loss = NumericalMeter()
+        self._state.running_loss = NumericalMeter(maxlen=print_interval)
         # Initialize timers
-        self._state.t_data = NumericalMeter()
-        self._state.t_iteration = HandyTimer()
+        self._state.t_data = NumericalMeter(maxlen=print_interval)
+        self._state.t_iteration = NumericalMeter(maxlen=print_interval)
 
     def __call__(self, n):
         # Train for a specified number of epochs
@@ -158,10 +158,10 @@ class LearningEngine(State):
                 self._on_start_iteration()
                 # Force network mode
                 self._state.net.train()
-                with self._state.t_iteration:
-                    self._on_each_iteration()
+                self._on_each_iteration()
                 self._state.running_loss.append(self._state.loss.item())
                 self._on_end_iteration()
+                self._state.t_iteration.append(time.time() - timestamp)
                 timestamp = time.time()
                 
             self._on_end_epoch()
@@ -218,7 +218,7 @@ class LearningEngine(State):
         for state in optim_copy.state.values():
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
-                    state[k] = v.to(self._device)
+                    state[k] = v.cpu()
         torch.save({
             'iteration': self._state.iteration,
             'epoch': self._state.epoch,
