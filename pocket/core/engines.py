@@ -93,7 +93,7 @@ class LearningEngine(State):
         super().__init__()
         self._dawn = time.time()
 
-        self._device = torch.device('cuda') if torch.cuda.is_available() \
+        self._device = torch.device('cuda:0') if torch.cuda.is_available() \
             else torch.device('cpu')
         self._multigpu = torch.cuda.device_count() > 1
         self._criterion =  criterion if not isinstance(criterion, torch.nn.Module) \
@@ -193,11 +193,11 @@ class LearningEngine(State):
     def _print_statistics(self):
         print("[Ep.][Iter.]: [{}][{}] | "
                 "Loss: {:.4f} | "
-                "Time[Data][Iter.]: [{:.4f}s][{:.4f}s]".format(
+                "Time[Data/Iter.]: [{:.4f}s/{:.4f}s]".format(
                     self._state.epoch, self._state.iteration,
                     self._state.running_loss.mean(),
-                    self._state.t_iteration.sum(),
-                    self._state.t_data.sum())
+                    self._state.t_data.sum(),
+                    self._state.t_iteration.sum())
             )
         self._state.t_iteration.reset()
         self._state.t_data.reset()
@@ -294,19 +294,19 @@ class MultiClassClassificationEngine(LearningEngine):
         >>> # saved model parameters, optimizer statistics and progress
         >>> engine(1)
 
-        => Validation (+5.13s)
-        Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 2.35s
+        => Validation (+9.74s)
+        Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 1.83s
 
-        [Ep.][Iter.]: [1][100] | Loss: 2.2971 | Time[Data][Iter.]: [2.9884s][2.8512s]
-        [Ep.][Iter.]: [1][200] | Loss: 2.2773 | Time[Data][Iter.]: [0.2582s][2.8057s]
-        [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data][Iter.]: [0.2949s][2.9972s]
-        [Ep.][Iter.]: [1][400] | Loss: 2.0143 | Time[Data][Iter.]: [0.2578s][2.4794s]
+        [Ep.][Iter.]: [1][100] | Loss: 2.2971 | Time[Data/Iter.]: [2.8266s/3.1294s]
+        [Ep.][Iter.]: [1][200] | Loss: 2.2773 | Time[Data/Iter.]: [2.6130s/2.9324s]
+        [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data/Iter.]: [2.3087s/2.6148s]
+        [Ep.][Iter.]: [1][400] | Loss: 2.0142 | Time[Data/Iter.]: [2.1537s/2.4501s]
 
-        => Training (+17.66s)
-        Epoch: 1 | Acc.: 0.3181[19090/60000]
-        => Validation (+19.43s)
-        Epoch: 1 | Acc.: 0.7950[7950/10000] | Loss: 0.7701 | Time: 2.04s
-    """
+        => Training (+22.64s)
+        Epoch: 1 | Acc.: 0.3182[19091/60000]
+        => Validation (+24.36s)
+        Epoch: 1 | Acc.: 0.7949[7949/10000] | Loss: 0.7700 | Time: 1.72s
+        """
     def __init__(self,
             net,
             criterion,
@@ -450,18 +450,18 @@ class MultiLabelClassificationEngine(LearningEngine):
         >>> # saved model parameters, optimizer statistics and progress
         >>> engine(1)
 
-        => Validation (+57.05s)
-        Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 54.01s
+        => Validation (+64.57s)
+        Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 55.74s
 
-        [Ep.][Iter.]: [1][50] | Loss: 0.3601 | Time[Data][Iter.]: [26.5870s][0.9164s]
-        [Ep.][Iter.]: [1][100] | Loss: 0.2634 | Time[Data][Iter.]: [19.1039s][0.0111s]
-        [Ep.][Iter.]: [1][150] | Loss: 0.2532 | Time[Data][Iter.]: [19.2337s][0.0104s]
+        [Ep.][Iter.]: [1][50] | Loss: 0.3516 | Time[Data/Iter.]: [0.8834s/44.9455s]
+        [Ep.][Iter.]: [1][100] | Loss: 0.2623 | Time[Data/Iter.]: [0.0115s/32.8341s]
+        [Ep.][Iter.]: [1][150] | Loss: 0.2550 | Time[Data/Iter.]: [0.0088s/33.2330s]
 
-        => Training (+195.74s)
-        Epoch: 1 | mAP: 0.0925 | Time(eval): 2.35s
-        => Validation (+238.64s)
-        Epoch: 1 | mAP: 0.1283 | Loss: 0.4617 | Time: 42.90s
-    """
+        => Training (+211.59s)
+        Epoch: 1 | mAP: 0.0929 | Time(eval): 2.91s
+        => Validation (+254.78s)
+        Epoch: 1 | mAP: 0.1319 | Loss: 0.3520 | Time: 43.20s
+        """
     def __init__(self,
             net,
             criterion,
