@@ -9,7 +9,7 @@ Australian Centre for Robotic Vision
 
 import torch
 from torchvision import datasets, models, transforms
-from pocket.utils import MultiLabelClassificationEngine
+from pocket.core import MultiLabelClassificationEngine
 
 CLASSES = (
         "aeroplane", "bicycle", "bird", "boat", "bottle", "bus",
@@ -76,53 +76,53 @@ if __name__ == '__main__':
 
     # Sample output
     """
-    => Validation (+57.05s)
-    Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 54.01s
+    => Validation (+64.57s)
+    Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 55.74s
 
-    [Ep.][Iter.]: [1][50] | Loss: 0.3601 | Time[Data][Iter.]: [26.5870s][0.9164s]
-    [Ep.][Iter.]: [1][100] | Loss: 0.2634 | Time[Data][Iter.]: [19.1039s][0.0111s]
-    [Ep.][Iter.]: [1][150] | Loss: 0.2532 | Time[Data][Iter.]: [19.2337s][0.0104s]
+    [Ep.][Iter.]: [1][50] | Loss: 0.3516 | Time[Data/Iter.]: [0.8834s/44.9455s]
+    [Ep.][Iter.]: [1][100] | Loss: 0.2623 | Time[Data/Iter.]: [0.0115s/32.8341s]
+    [Ep.][Iter.]: [1][150] | Loss: 0.2550 | Time[Data/Iter.]: [0.0088s/33.2330s]
 
-    => Training (+195.74s)
-    Epoch: 1 | mAP: 0.0925 | Time(eval): 2.35s
-    => Validation (+238.64s)
-    Epoch: 1 | mAP: 0.1283 | Loss: 0.4617 | Time: 42.90s
+    => Training (+211.59s)
+    Epoch: 1 | mAP: 0.0929 | Time(eval): 2.91s
+    => Validation (+254.78s)
+    Epoch: 1 | mAP: 0.1319 | Loss: 0.3520 | Time: 43.20s
 
-    [Ep.][Iter.]: [2][200] | Loss: 0.2417 | Time[Data][Iter.]: [30.7052s][0.8373s]
-    [Ep.][Iter.]: [2][250] | Loss: 0.2450 | Time[Data][Iter.]: [19.2139s][0.0101s]
-    [Ep.][Iter.]: [2][300] | Loss: 0.2337 | Time[Data][Iter.]: [19.2366s][0.0103s]
-    [Ep.][Iter.]: [2][350] | Loss: 0.2342 | Time[Data][Iter.]: [19.1734s][0.0101s]
+    [Ep.][Iter.]: [2][200] | Loss: 0.2435 | Time[Data/Iter.]: [0.9589s/45.9702s]
+    [Ep.][Iter.]: [2][250] | Loss: 0.2466 | Time[Data/Iter.]: [0.0128s/33.3668s]
+    [Ep.][Iter.]: [2][300] | Loss: 0.2366 | Time[Data/Iter.]: [0.0150s/33.2839s]
+    [Ep.][Iter.]: [2][350] | Loss: 0.2354 | Time[Data/Iter.]: [0.0145s/33.4185s]
 
-    => Training (+360.82s)
-    Epoch: 2 | mAP: 0.1395 | Time(eval): 2.20s
-    => Validation (+404.11s)
-    Epoch: 2 | mAP: 0.1502 | Loss: 0.2780 | Time: 43.29s
+    => Training (+378.84s)
+    Epoch: 2 | mAP: 0.1353 | Time(eval): 2.62s
+    => Validation (+423.25s)
+    Epoch: 2 | mAP: 0.1508 | Loss: 0.2576 | Time: 44.40s
 
-    [Ep.][Iter.]: [3][400] | Loss: 0.2314 | Time[Data][Iter.]: [18.9970s][1.0269s]
-    [Ep.][Iter.]: [3][450] | Loss: 0.2296 | Time[Data][Iter.]: [19.1553s][0.0154s]
-    [Ep.][Iter.]: [3][500] | Loss: 0.2265 | Time[Data][Iter.]: [19.0785s][0.0121s]
+    [Ep.][Iter.]: [3][400] | Loss: 0.2307 | Time[Data/Iter.]: [0.9710s/33.3509s]
+    [Ep.][Iter.]: [3][450] | Loss: 0.2307 | Time[Data/Iter.]: [0.0120s/32.9732s]
+    [Ep.][Iter.]: [3][500] | Loss: 0.2267 | Time[Data/Iter.]: [0.0110s/32.9218s]
 
-    => Training (+525.67s)
-    Epoch: 3 | mAP: 0.1695 | Time(eval): 2.36s
-    => Validation (+568.71s)
-    Epoch: 3 | mAP: 0.1742 | Loss: 0.2734 | Time: 43.04s
+    => Training (+545.57s)
+    Epoch: 3 | mAP: 0.1700 | Time(eval): 2.59s
+    => Validation (+588.90s)
+    Epoch: 3 | mAP: 0.1838 | Loss: 0.2866 | Time: 43.33s
 
-    [Ep.][Iter.]: [4][550] | Loss: 0.2273 | Time[Data][Iter.]: [19.0480s][0.8987s]
-    [Ep.][Iter.]: [4][600] | Loss: 0.2213 | Time[Data][Iter.]: [19.2186s][0.0124s]
-    [Ep.][Iter.]: [4][650] | Loss: 0.2243 | Time[Data][Iter.]: [19.3367s][0.0135s]
-    [Ep.][Iter.]: [4][700] | Loss: 0.2223 | Time[Data][Iter.]: [19.2185s][0.0146s]
+    [Ep.][Iter.]: [4][550] | Loss: 0.2278 | Time[Data/Iter.]: [0.9267s/33.3011s]
+    [Ep.][Iter.]: [4][600] | Loss: 0.2225 | Time[Data/Iter.]: [0.0127s/32.7028s]
+    [Ep.][Iter.]: [4][650] | Loss: 0.2260 | Time[Data/Iter.]: [0.0116s/32.9071s]
+    [Ep.][Iter.]: [4][700] | Loss: 0.2214 | Time[Data/Iter.]: [0.0117s/32.8610s]
 
-    => Training (+690.65s)
-    Epoch: 4 | mAP: 0.1898 | Time(eval): 2.47s
-    => Validation (+734.37s)
-    Epoch: 4 | mAP: 0.1841 | Loss: 0.2249 | Time: 43.72s
+    => Training (+711.95s)
+    Epoch: 4 | mAP: 0.1878 | Time(eval): 2.58s
+    => Validation (+755.31s)
+    Epoch: 4 | mAP: 0.1820 | Loss: 0.2649 | Time: 43.36s
 
-    [Ep.][Iter.]: [5][750] | Loss: 0.2218 | Time[Data][Iter.]: [18.9964s][1.0675s]
-    [Ep.][Iter.]: [5][800] | Loss: 0.2164 | Time[Data][Iter.]: [19.2012s][0.0105s]
-    [Ep.][Iter.]: [5][850] | Loss: 0.2185 | Time[Data][Iter.]: [19.2428s][0.0108s]
+    [Ep.][Iter.]: [5][750] | Loss: 0.2237 | Time[Data/Iter.]: [0.5999s/33.0283s]
+    [Ep.][Iter.]: [5][800] | Loss: 0.2171 | Time[Data/Iter.]: [0.0119s/33.0726s]
+    [Ep.][Iter.]: [5][850] | Loss: 0.2191 | Time[Data/Iter.]: [0.0113s/32.9399s]
 
-    => Training (+856.15s)
-    Epoch: 5 | mAP: 0.2091 | Time(eval): 2.36s
-    => Validation (+899.38s)
-    Epoch: 5 | mAP: 0.2131 | Loss: 0.2384 | Time: 43.23s
+    => Training (+878.36s)
+    Epoch: 5 | mAP: 0.2033 | Time(eval): 2.59s
+    => Validation (+921.95s)
+    Epoch: 5 | mAP: 0.2207 | Loss: 0.2388 | Time: 43.59s
     """
