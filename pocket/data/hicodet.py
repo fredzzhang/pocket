@@ -79,6 +79,10 @@ class HICODet(ImageDataset):
         """
         return self._class_corr.copy()
 
+    def filename(self, idx):
+        """Return the image file name"""
+        return self._filenames[self._idx[idx]]
+
     @staticmethod
     def load_annotation_and_metadata(f):
         """
