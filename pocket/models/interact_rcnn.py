@@ -46,30 +46,35 @@ class InteractionHead(nn.Module):
         self.num_box_pairs_per_image = num_box_pairs_per_image
         self.positive_fraction = positive_fraction
 
-    def pair_up_boxes_and_assign_to_targets(self, boxes, scores, targets=None):
+    def pair_up_boxes_and_assign_to_targets(self, boxes, labels, targets=None):
         """
         boxes(list[Tensor[N, 4]])
-        scores(list[Tensor[N, 80]])
+        labels(list[Tensor[N]])
         target(list[dict])
         """
-        if self.training and targets:
+        if self.training and targets is None:
             raise AssertionError("Targets should be passed during training")
         
         box_pairs = []
         for idx in range(len(boxes)):
-            object_cls = scores[idx].argmax(1)
-            h_idx = (object_cls == 0).nonzero()
+            object_cls = labels[idx]
+            # Find detections of human instances
+            h_idx = (object_cls == 49).nonzero().squeeze()
             paired_idx = torch.cat([
                 v.flatten()[:, None] for v in torch.meshgrid(
                     h_idx, 
                     torch.arange(len(object_cls))
                 )
             ], 1)
-            paired_boxes = boxes[idx][paired_idx, :].view(-1, 8)
+            # Remove pairs of the same human instance
+            keep_idx = torch.eq(paired_idx[:, 0], paired_idx[:, 1]).logical_not().nonzero().squeeze()
+            paired_idx = paired_idx[keep_idx, :]
 
-            labels = torch.zeros(len(object_cls), self.num_classes) \
+            paired_boxes = boxes[idx][paired_idx, :].view(-1, 8)
+            
+            labels = torch.zeros(paired_boxes.shape[0], self.num_classes) \
                 if self.training else None
-            if self._training:
+            if self.training:
                 target_in_image = targets[idx]  
                 fg_match = torch.nonzero(torch.min(
                     box_iou(paired_boxes[:, :4], target_in_image['boxes_h']),
@@ -84,19 +89,25 @@ class InteractionHead(nn.Module):
 
         return box_pairs
 
-    def forward(self, features, boxes, scores, targets=None):
+    def forward(self, features, detections, targets=None):
         """
         Arguments:
             features(list[Tensor]): Image pyramid with each tensor corresponding to
                 a feature level
-            boxes(list[Tensor[N, 4]]): Bounding boxes at image scale
-            scores(list[Tensor[N, 80]]): Scores of boxes for each object class
-            target(list[dict]): 
+            detections(list[dict]): Object detections with keys boxes(Tensor[N,4]), 
+                labels(Tensor[N]) and scores(Tensor[N])
+            target(list[dict]): Targets with keys boxes_h(Tensor[N,4]), boxes_o([Tensor[N,4]])
+                hoi(Tensor[N]), object(Tensor[N]) and verb(Tensor[N])
         Returns:
             boxes(list[Tensor[N, 4]])
             scores(list[Tensor[N, C]])
         """
-        box_pairs = self.pair_up_boxes_and_assign_to_targets(boxes, scores, targets)
+        box_pairs = self.pair_up_boxes_and_assign_to_targets(
+            [detection['boxes'] for detection in detections],
+            [detection['labels'] for detection in detections],
+            targets)
+
+        return box_pairs
 
 
 class InteractRCNN(nn.Module):
