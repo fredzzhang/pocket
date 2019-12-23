@@ -9,7 +9,6 @@ Australian Centre for Robotic Vision
 
 import torch
 from torch import nn
-from torchvision.ops import roi_align
 from torchvision.ops.boxes import box_iou
 
 class InteractionHead(nn.Module):
@@ -55,7 +54,8 @@ class InteractionHead(nn.Module):
         if self.training and targets is None:
             raise AssertionError("Targets should be passed during training")
         
-        box_pairs = []
+        box_pair_idx = []
+        box_pair_labels = []
         for idx in range(len(boxes)):
             object_cls = labels[idx]
             # Find detections of human instances
@@ -85,9 +85,10 @@ class InteractionHead(nn.Module):
                     target_in_image['hoi'][fg_match[:, 1]]
                 ] = 1
 
-            box_pairs.append({'paired_idx': paired_idx, 'labels': labels})
+            box_pair_idx.append(paired_idx)
+            box_pair_labels.append(labels)
 
-        return box_pairs
+        return box_pair_idx, box_pair_labels
 
     def forward(self, features, detections, targets=None):
         """
@@ -102,12 +103,21 @@ class InteractionHead(nn.Module):
             boxes(list[Tensor[N, 4]])
             scores(list[Tensor[N, C]])
         """
-        box_pairs = self.pair_up_boxes_and_assign_to_targets(
-            [detection['boxes'] for detection in detections],
-            [detection['labels'] for detection in detections],
-            targets)
+        if self.training and targets is None:
+            raise AssertionError("Targets should be passed during training")
 
-        return box_pairs
+        box_coords = [detection['boxes'] for detection in detections]
+        box_labels = [detection['labels'] for detection in detections]
+        box_scores = [detection['scores'] for detection in detections]
+
+        box_pair_idx, box_pair_labels = self.pair_up_boxes_and_assign_to_targets(
+            box_coords, box_labels, targets)
+
+        box_pair_features = self.box_pair_pooler(features, box_pair_idx, box_coords)
+        box_pair_features = self.box_pair_head(box_pair_features)
+        class_logits = self.box_pair_logistic(box_pair_features)
+
+        return class_logits
 
 
 class InteractRCNN(nn.Module):
