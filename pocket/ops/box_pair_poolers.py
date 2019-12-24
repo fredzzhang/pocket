@@ -133,28 +133,33 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
         Returns:
             mask(Tensor[C, H, W])
         """
+        # NOTE: THIS IS CRUCIAL TO UNDERSTAND
+        # Box coordinate arithmetic:
+        # Given float-point coordiantes (x,y), the index of the pixel
+        # that contains the point is always |_x_|, |_y_|
+
         mask = mask.clone()
         # Expand the scaled bounding box to integer coordinates
         mask[:,
-            box[0].floor().long(): box[2].ceil().long() + 1,
-            box[1].floor().long(): box[3].ceil().long() + 1
+            box[0].floor().long(): box[2].ceil().long(),
+            box[1].floor().long(): box[3].ceil().long()
         ] = 1
         # Now attenuate the mask values at the expanded pixels
         mask[:,
             box[0].floor().long(),
-            box[1].floor().long(): box[3].ceil().long() + 1
+            box[1].floor().long(): box[3].ceil().long()
         ] *= (box[0].ceil() - box[0])
         mask[:,
-            box[2].ceil().long(),
-            box[1].floor().long(): box[3].ceil().long() + 1
+            box[2].floor().long(),
+            box[1].floor().long(): box[3].ceil().long()
         ] *= (box[2] - box[2].floor())
         mask[:,
-            box[0].floor().long(): box[2].ceil().long() + 1,
+            box[0].floor().long(): box[2].ceil().long(),
             box[1].floor().long()
         ] *= (box[1].ceil() - box[1])
         mask[:,
-            box[0].floor().long(): box[2].ceil().long() + 1,
-            box[3].ceil().long()
+            box[0].floor().long(): box[2].ceil().long(),
+            box[3].floor().long()
         ] *= (box[3] - box[3].floor())
 
         return mask
