@@ -191,7 +191,7 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
             boxes_1(Tensor[N, 5])
             boxes_2(Tensor[N, 5])
         """
-        box_union = torch.zeros_like(boxes_1)
+        box_union = boxes_1.clone()
         box_union[:, 1] = torch.min(boxes_1[:, 1], boxes_2[:, 1])
         box_union[:, 2] = torch.min(boxes_1[:, 2], boxes_2[:, 2])
         box_union[:, 3] = torch.max(boxes_1[:, 3], boxes_2[:, 3])
