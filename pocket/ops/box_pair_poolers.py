@@ -84,7 +84,7 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
             is performed, as (height, width)
         spatial_scale(Tuple[float]): Scaling factors between the bounding box coordinates
             and feature coordinates. When provided features spread across multiple levels,
-            the tuple of scales are expected to be organized in ascending order. And each
+            the tuple of scales are expected to be organized in descending order. And each
             scale is expected to be in the format of 2 ^ (-k). The number of scales given
             will indicate the number of feature maps
         sampling_ratio(int): Number of sampling points in the interpolation grid
@@ -103,9 +103,9 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
         self.sampling_ratio = sampling_ratio
         self.mask_limit = mask_limit
 
-        lvl_min = -torch.log2(torch.tensor(min(spatial_scale),
+        lvl_min = -torch.log2(torch.tensor(max(spatial_scale),
             dtype=torch.float32)).item()
-        lvl_max = -torch.log2(torch.tensor(max(spatial_scale),
+        lvl_max = -torch.log2(torch.tensor(min(spatial_scale),
             dtype=torch.float32)).item()
         self.map_levels = LevelMapper_(lvl_min, lvl_max)
 
@@ -223,7 +223,7 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
 
             box_pair_union = self.compute_box_pair_union(
                 boxes_h[start_idx: end_idx],
-                boxes_o[start_idx, end_idx]
+                boxes_o[start_idx: end_idx]
             )
             box_pair_masks = self.construct_masks_for_box_pairs(
                 features[0], 0,
@@ -244,14 +244,14 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
                     )
             else:
                 levels = self.map_levels(box_pair_union)
-                for level, (per_level_features, scale) in enumerate(zip(features, self.spatial_scale)):
+                for level, (per_level_feature, scale) in enumerate(zip(features, self.spatial_scale)):
                     idx_in_level = torch.nonzero(levels == level).squeeze(1)
                     rois_per_level = box_pair_union[idx_in_level]
                     masks_per_level = box_pair_masks[idx_in_level]
 
                     output[start_idx: end_idx][idx_in_level] = \
                         masked_roi_align(
-                            per_level_features,
+                            per_level_feature,
                             rois_per_level,
                             masks_per_level,
                             self.output_size,
