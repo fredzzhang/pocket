@@ -225,13 +225,13 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
                 boxes_h[start_idx: end_idx],
                 boxes_o[start_idx: end_idx]
             )
-            box_pair_masks = self.construct_masks_for_box_pairs(
-                features[0], 0,
-                boxes_h[start_idx: end_idx],
-                boxes_o[start_idx: end_idx]
-            )
 
             if self.num_levels == 1:
+                box_pair_masks = self.construct_masks_for_box_pairs(
+                    features[0], 0,
+                    boxes_h[start_idx: end_idx],
+                    boxes_o[start_idx: end_idx]
+                )
                 output[start_idx: end_idx] = \
                     masked_roi_align(
                         features[0],
@@ -247,7 +247,11 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
                 for level, (per_level_feature, scale) in enumerate(zip(features, self.spatial_scale)):
                     idx_in_level = torch.nonzero(levels == level).squeeze(1)
                     rois_per_level = box_pair_union[idx_in_level]
-                    masks_per_level = box_pair_masks[idx_in_level]
+                    masks_per_level = self.construct_masks_for_box_pairs(
+                        per_level_feature, level,
+                        boxes_h[start_idx: end_idx][idx_in_level],
+                        boxes_o[start_idx: end_idx][idx_in_level]
+                    )
 
                     output[start_idx: end_idx][idx_in_level] = \
                         masked_roi_align(
