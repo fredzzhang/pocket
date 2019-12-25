@@ -90,6 +90,20 @@ class InteractionHead(nn.Module):
 
         return box_pair_idx, box_pair_labels
 
+    def map_object_scores_to_interaction_scores(self, box_scores, box_labels, box_pair_idx):
+        detection_scores = torch.cat([
+            box_scores[per_image_pair_idx[:, 0]] * box_scores[per_image_pair_idx[:, 1]] \
+                for per_image_pair_idx in box_pair_idx
+        ])
+        detection_labels = torch.cat([
+            box_labels[per_image_pair_idx[:, 1]] for per_image_pair_idx in box_pair_idx
+        ])
+        # TODO: Map object scores to interaction scores
+        return 1
+
+    def compute_interaction_classification_loss(self, class_logits, detection_scores, box_pair_labels):
+        return 1
+
     def forward(self, features, detections, targets=None):
         """
         Arguments:
@@ -113,9 +127,22 @@ class InteractionHead(nn.Module):
         box_pair_idx, box_pair_labels = self.pair_up_boxes_and_assign_to_targets(
             box_coords, box_labels, targets)
 
-        box_pair_features = self.box_pair_pooler(features, box_pair_idx, box_coords)
+        boxes_h = [box_coords[per_image_pair_idx[:, 0]] for per_image_pair_idx in box_pair_idx]
+        boxes_o = [box_coords[per_image_pair_idx[:, 1]] for per_image_pair_idx in box_pair_idx]
+
+        box_pair_features = self.box_pair_pooler(features, boxes_h, boxes_o)
+        box_pair_features = box_pair_features.flatten(start_dim=1)
         box_pair_features = self.box_pair_head(box_pair_features)
         class_logits = self.box_pair_logistic(box_pair_features)
+
+        detection_scores = self.map_object_scores_to_interaction_scores(
+            box_scores, box_labels, box_pair_idx)
+
+        if self.training:
+            loss = dict(interaction_loss=self.compute_interaction_classification_loss(
+                class_logits, detection_scores, torch.cat(box_pair_labels, 0)
+            ))
+            return loss
 
         return class_logits
 
