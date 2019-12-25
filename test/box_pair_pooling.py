@@ -35,7 +35,7 @@ def test():
         [256., 0., 512., 256.]
     ])
 
-    m = BoxPairMultiScaleRoIAlign(output_size=4, spatial_scale=[1/8, 1/16, 1/32], sampling_ratio=2)
+    m = BoxPairMultiScaleRoIAlign(output_size=5, spatial_scale=[1/8, 1/16, 1/32], sampling_ratio=2)
 
     t = time.time()
     out = m(f, [boxes_h], [boxes_o])
