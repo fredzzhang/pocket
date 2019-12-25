@@ -132,35 +132,42 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
             box(Tensor[4]): Box coordinates aligned with mask scale
         Returns:
             mask(Tensor[C, H, W])
+
+        NOTE: This following crucial to understand
+
+        1. For a pixel, the coordinates of the point at its top left corner
+            give its index
+        2. For a point with non-integer coordinates (x,y), the index of the
+            pixel that contains the point is always (x.floor(), y.floor())
+        3. For a bounding box defined as (x1, y1, x2, y2), the pixel that contains
+            the top left corner can be indexed by [x1.floor(), y1.floor()], but 
+            the pixel that contains the bottom right coner must be indexed by
+            [x2.ceil()-1, y2.ceil()-1], NOT [x2.floor(), y2.floor()]
         """
-        # NOTE: THIS IS CRUCIAL TO UNDERSTAND
-        # Box coordinate arithmetic:
-        # Given float-point coordiantes (x,y), the index of the pixel
-        # that contains the point is always |_x_|, |_y_|
 
         mask = mask.clone()
         # Expand the scaled bounding box to integer coordinates
         mask[:,
+            box[1].floor().long(): box[3].ceil().long(),
             box[0].floor().long(): box[2].ceil().long(),
-            box[1].floor().long(): box[3].ceil().long()
         ] = 1
         # Now attenuate the mask values at the expanded pixels
         mask[:,
+            box[1].floor().long(): box[3].ceil().long(),
             box[0].floor().long(),
-            box[1].floor().long(): box[3].ceil().long()
-        ] *= (box[0].ceil() - box[0])
+        ] *= (1 + box[0].floor() - box[0])
         mask[:,
-            box[2].floor().long(),
-            box[1].floor().long(): box[3].ceil().long()
-        ] *= (box[2] - box[2].floor())
+            box[1].floor().long(): box[3].ceil().long(),
+            box[2].ceil().long() - 1,
+        ] *= (1 + box[2] - box[2].ceil())
         mask[:,
+            box[1].floor().long(),
             box[0].floor().long(): box[2].ceil().long(),
-            box[1].floor().long()
-        ] *= (box[1].ceil() - box[1])
+        ] *= (1 + box[1].floor() - box[1])
         mask[:,
+            box[3].ceil().long() - 1,
             box[0].floor().long(): box[2].ceil().long(),
-            box[3].floor().long()
-        ] *= (box[3] - box[3].floor())
+        ] *= (1 + box[3] - box[3].ceil())
 
         return mask
 
@@ -212,6 +219,9 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
             boxes_h(list[Tensor[M, 4]]) 
             boxes_o(list[Tensor[M, 4]])
         """
+        assert len(features) == self.num_levels,\
+            "Number of levels in given features does not match the number of scales"
+ 
         boxes_h = convert_boxes_to_roi_format(boxes_h)
         boxes_o = convert_boxes_to_roi_format(boxes_o)
 
