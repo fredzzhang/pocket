@@ -60,15 +60,20 @@ class LevelMapper_(LevelMapper):
     """Modify torchvision.ops.poolers.LevelMapper"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-    def __call__(self, boxes):
+    def __call__(self, boxes_1, boxes_2=None):
         """
         Override __call__ method for different input format
 
         Arguments:
-            boxes(Tensor[N, 5])
+            boxes_1(Tensor[N, 5])
+            boxes_2(Tensor[N, 5])
         """
-        # Compute box area
-        s = torch.sqrt((boxes[:, 3] - boxes[:, 1]) * (boxes[:, 4] - boxes[:, 2]))
+        boxes_2 = boxes_1.clone() if boxes_2 is None else boxes_2
+        # Use the smaller area between the two groups of boxes
+        s = torch.min(
+            torch.sqrt((boxes_1[:, 3] - boxes_1[:, 1]) * (boxes_1[:, 4] - boxes_1[:, 2])),
+            torch.sqrt((boxes_2[:, 3] - boxes_2[:, 1]) * (boxes_2[:, 4] - boxes_2[:, 2]))
+        )
         # Copied from torchvision.ops.poolers.LevelMapper
         # as per Eqn.(1) in FPN paper
         target_lvls = torch.floor(self.lvl0 + torch.log2(s / self.s0 + self.eps))
@@ -258,7 +263,10 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
                         clone_limit=self.mask_limit
                     )
             else:
-                levels = self.map_levels(box_pair_union)
+                levels = self.map_levels(
+                    boxes_h[start_idx: end_idx],
+                    boxes_o[start_idx: end_idx]
+                )
                 for level, (per_level_feature, scale) in enumerate(zip(features, self.spatial_scale)):
                     idx_in_level = torch.nonzero(levels == level).squeeze(1)
                     rois_per_level = box_pair_union[idx_in_level]
