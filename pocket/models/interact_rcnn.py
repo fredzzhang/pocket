@@ -18,15 +18,17 @@ class InteractionHead(nn.Module):
         pooler_output_shape(tuple): (C, H, W)
         representation_size(int): Size of the intermediate representation
         num_classes(int): Number of output classes
+        object_class_to_target_class(list[Tensor]): Each element in the list maps an object class
+            to corresponding target classes
         fg_iou_thresh(float)
-        bg_iou_thresh(float)
         num_box_pairs_per_image(int): Number of box pairs used in training for each image
         positive_fraction(float): The propotion of positive box pairs used in training
     """
     def __init__(self,
             box_pair_pooler,
             pooler_output_shape, representation_size, num_classes,
-            fg_iou_thresh, num_box_pairs_per_image, positive_fraction):
+            object_class_to_target_class,
+            fg_iou_thresh=0.5, num_box_pairs_per_image=-1, positive_fraction=-1):
         
         super().__init__()
 
@@ -40,6 +42,8 @@ class InteractionHead(nn.Module):
         self.box_pair_logistic = nn.Linear(representation_size, num_classes)
 
         self.num_classes = num_classes  
+
+        self.object_class_to_target_class = object_class_to_target_class
 
         self.fg_iou_thresh = fg_iou_thresh
         self.num_box_pairs_per_image = num_box_pairs_per_image
@@ -98,11 +102,46 @@ class InteractionHead(nn.Module):
         detection_labels = torch.cat([
             box_labels[per_image_pair_idx[:, 1]] for per_image_pair_idx in box_pair_idx
         ])
-        # TODO: Map object scores to interaction scores
-        return 1
+
+        mapped_scores = torch.zeros(len(detection_scores), self.num_classes,
+            dtype=detection_scores.dtype, device=detection_scores.device)
+        for idx, (obj, score) in enumerate(zip(detection_labels, detection_scores)):
+            mapped_scores[idx, self.object_class_to_target_class[obj]] = score
+        
+        return mapped_scores
 
     def compute_interaction_classification_loss(self, class_logits, detection_scores, box_pair_labels):
-        return 1
+        detection_scores = detection_scores.flatten()
+        classification_scores = torch.sigmoid(class_logits).flatten()
+        # Disregard the interaction classes that do not contain the detected object
+        keep_idx = detection_scores.nonzero().squeeze()
+
+        return torch.nn.functional.binary_cross_entropy_with_logits(
+            classification_scores[keep_idx], box_pair_labels[keep_idx])
+
+    def postprocess(self, class_logits, detection_scores, boxes_h, boxes_o):
+        num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
+        boxes_h = torch.cat(boxes_h, 0)
+        boxes_o = torch.cat(boxes_o, 0)
+
+        interaction_scores = detection_scores * torch.sigmodi(class_logits)
+        keep_idx = interaction_scores.nonzero()
+
+        all_scores = interaction_scores[keep_idx[:, 0], keep_idx[:, 1]].split(num_boxes, 0)
+        all_boxes_h = boxes_h[keep_idx[:, 0], keep_idx[:, 1]].split(num_boxes, 0)
+        all_boxes_o = boxes_o[keep_idx[:, 0], keep_idx[:, 1]].split(num_boxes, 0)
+        all_labels = keep_idx[:, 1].split(num_boxes, 0)
+
+        results = []
+        for scores, b_h, b_o, labels in zip(all_scores, all_boxes_h, all_boxes_o, all_labels):
+            results.append(dict(
+                boxes_h = b_h,
+                boxes_o = b_o,
+                labels=labels,
+                scores=scores,
+            ))
+
+        return results
 
     def forward(self, features, detections, targets=None):
         """
@@ -143,8 +182,11 @@ class InteractionHead(nn.Module):
                 class_logits, detection_scores, torch.cat(box_pair_labels, 0)
             ))
             return loss
+        
+        results = self.postprocess(
+            class_logits, detection_scores, boxes_h, boxes_o)
 
-        return class_logits
+        return results
 
 
 class InteractRCNN(nn.Module):
