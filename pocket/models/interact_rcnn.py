@@ -166,8 +166,10 @@ class InteractionHead(nn.Module):
         box_pair_idx, box_pair_labels = self.pair_up_boxes_and_assign_to_targets(
             box_coords, box_labels, targets)
 
-        boxes_h = [box_coords[per_image_pair_idx[:, 0]] for per_image_pair_idx in box_pair_idx]
-        boxes_o = [box_coords[per_image_pair_idx[:, 1]] for per_image_pair_idx in box_pair_idx]
+        boxes_h = [boxes[per_image_pair_idx[:, 0]] 
+            for per_image_pair_idx, boxes in zip(box_pair_idx, box_coords)]
+        boxes_o = [boxes[per_image_pair_idx[:, 1]] 
+            for per_image_pair_idx, boxes in zip(box_pair_idx, box_coords)]
 
         box_pair_features = self.box_pair_pooler(features, boxes_h, boxes_o)
         box_pair_features = box_pair_features.flatten(start_dim=1)
