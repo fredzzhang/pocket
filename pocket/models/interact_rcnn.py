@@ -10,6 +10,7 @@ Australian Centre for Robotic Vision
 import torch
 from torch import nn
 from torchvision.ops.boxes import box_iou
+from torchvision.ops._utils import _cat
 
 class InteractionHead(nn.Module):
     """
@@ -58,9 +59,9 @@ class InteractionHead(nn.Module):
         """
         for detection in detections:
             keep_idx = torch.nonzero(detection['scores'] >= self.detection_score_thresh).squeeze()
-            detection['boxes'] = detection['boxes'][keep_idx, :]
-            detection['scores'] = detection['scores'][keep_idx]
-            detection['labels'] = detection['labels'][keep_idx]
+            detection['boxes'] = detection['boxes'][keep_idx, :].view(-1, 4)
+            detection['scores'] = detection['scores'][keep_idx].view(-1)
+            detection['labels'] = detection['labels'][keep_idx].view(-1)
 
     def pair_up_boxes_and_assign_to_targets(self, boxes, labels, targets=None):
         """
@@ -85,7 +86,7 @@ class InteractionHead(nn.Module):
             ], 1)
             # Remove pairs of the same human instance
             keep_idx = (paired_idx[:, 0] != paired_idx[:, 1]).nonzero().squeeze()
-            paired_idx = paired_idx[keep_idx, :]
+            paired_idx = paired_idx[keep_idx, :].view(-1, 2)
 
             paired_boxes = boxes[idx][paired_idx, :].view(-1, 8)
             
@@ -118,8 +119,8 @@ class InteractionHead(nn.Module):
                         neg_idx[torch.randperm(len(neg_idx))[
                             :int(self.num_box_pairs_per_image * (1-self.positive_fraction))]]    
                     ])
-                paired_idx = paired_idx[sampled_idx, :]
-                labels = labels[sampled_idx, :]
+                paired_idx = paired_idx[sampled_idx, :].view(-1, 2)
+                labels = labels[sampled_idx, :].view(-1, 2)
 
             box_pair_idx.append(paired_idx)
             box_pair_labels.append(labels)
@@ -127,12 +128,12 @@ class InteractionHead(nn.Module):
         return box_pair_idx, box_pair_labels
 
     def map_object_scores_to_interaction_scores(self, box_scores, box_labels, box_pair_idx):
-        detection_scores = torch.cat([
-            box_scores[per_image_pair_idx[:, 0]] * box_scores[per_image_pair_idx[:, 1]] \
-                for per_image_pair_idx in box_pair_idx
+        detection_scores = _cat([
+            scores[per_image_pair_idx[:, 0]] * scores[per_image_pair_idx[:, 1]] \
+                for per_image_pair_idx, scores in zip(box_pair_idx, box_scores)
         ])
-        detection_labels = torch.cat([
-            box_labels[per_image_pair_idx[:, 1]] for per_image_pair_idx in box_pair_idx
+        detection_labels = _cat([
+            labels[per_image_pair_idx[:, 1]] for per_image_pair_idx, labels in zip(box_pair_idx, box_labels)
         ])
 
         mapped_scores = torch.zeros(len(detection_scores), self.num_classes,
@@ -149,28 +150,21 @@ class InteractionHead(nn.Module):
         keep_idx = detection_scores.nonzero().squeeze()
 
         return torch.nn.functional.binary_cross_entropy_with_logits(
-            classification_scores[keep_idx], box_pair_labels[keep_idx])
+            classification_scores[keep_idx], box_pair_labels.flatten()[keep_idx])
 
     def postprocess(self, class_logits, detection_scores, boxes_h, boxes_o):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
-        boxes_h = torch.cat(boxes_h, 0)
-        boxes_o = torch.cat(boxes_o, 0)
-
-        interaction_scores = detection_scores * torch.sigmodi(class_logits)
-        keep_idx = interaction_scores.nonzero()
-
-        all_scores = interaction_scores[keep_idx[:, 0], keep_idx[:, 1]].split(num_boxes, 0)
-        all_boxes_h = boxes_h[keep_idx[:, 0], keep_idx[:, 1]].split(num_boxes, 0)
-        all_boxes_o = boxes_o[keep_idx[:, 0], keep_idx[:, 1]].split(num_boxes, 0)
-        all_labels = keep_idx[:, 1].split(num_boxes, 0)
+        interaction_scores = (detection_scores
+                * torch.sigmoid(class_logits)).split(num_boxes)
 
         results = []
-        for scores, b_h, b_o, labels in zip(all_scores, all_boxes_h, all_boxes_o, all_labels):
+        for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
+            keep_idx = scores.nonzero()
             results.append(dict(
-                boxes_h = b_h,
-                boxes_o = b_o,
-                labels=labels,
-                scores=scores,
+                boxes_h = b_h[keep_idx[:, 0], :],
+                boxes_o = b_o[keep_idx[:, 0], :],
+                labels=keep_idx[:, 1],
+                scores=scores[keep_idx[:, 0], keep_idx[:, 1]],
             ))
 
         return results
