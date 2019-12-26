@@ -50,11 +50,11 @@ def test(image_idx):
     features = [v for v in features.values()]
     # Remove the last max pooled features
     features = features[:-1]
-    out = interaction_head(
+    loss = interaction_head(
         features, [detection], targets=[target]
     )
 
-    print(out['boxes_h'].shape, out['scores'].shape, out['labels'].shape)
+    print(loss)
 
 if __name__ == '__main__':
     test(0)
