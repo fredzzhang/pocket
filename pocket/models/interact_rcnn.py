@@ -28,7 +28,8 @@ class InteractionHead(nn.Module):
             box_pair_pooler,
             pooler_output_shape, representation_size, num_classes,
             object_class_to_target_class,
-            fg_iou_thresh=0.5, num_box_pairs_per_image=-1, positive_fraction=-1):
+            fg_iou_thresh=0.5, num_box_pairs_per_image=512, positive_fraction=0.25,
+            detection_score_thresh=0.2):
         
         super().__init__()
 
@@ -48,6 +49,18 @@ class InteractionHead(nn.Module):
         self.fg_iou_thresh = fg_iou_thresh
         self.num_box_pairs_per_image = num_box_pairs_per_image
         self.positive_fraction = positive_fraction
+        self.detection_score_thresh = detection_score_thresh
+
+    def remove_low_confidence_detections(self, detections):
+        """
+        detections(list[dict]): Object detections with keys boxes(Tensor[N,4]), 
+            labels(Tensor[N]) and scores(Tensor[N])
+        """
+        for detection in detections:
+            keep_idx = torch.nonzero(detection['scores'] >= self.detection_score_thresh).squeeze()
+            detection['boxes'] = detection['boxes'][keep_idx, :]
+            detection['scores'] = detection['scores'][keep_idx]
+            detection['labels'] = detection['labels'][keep_idx]
 
     def pair_up_boxes_and_assign_to_targets(self, boxes, labels, targets=None):
         """
@@ -71,7 +84,7 @@ class InteractionHead(nn.Module):
                 )
             ], 1)
             # Remove pairs of the same human instance
-            keep_idx = torch.eq(paired_idx[:, 0], paired_idx[:, 1]).logical_not().nonzero().squeeze()
+            keep_idx = (paired_idx[:, 0] != paired_idx[:, 1]).nonzero().squeeze()
             paired_idx = paired_idx[keep_idx, :]
 
             paired_boxes = boxes[idx][paired_idx, :].view(-1, 8)
@@ -88,6 +101,25 @@ class InteractionHead(nn.Module):
                     fg_match[:, 0], 
                     target_in_image['hoi'][fg_match[:, 1]]
                 ] = 1
+                # Sample up to a specified number of box pairs
+                label_sum = labels.sum(1)
+                pos_idx = label_sum.nonzero().squeeze()
+                neg_idx = (label_sum == 0).nonzero().squeeze()
+                # Use all positive samples if there are fewer than specified
+                if len(pos_idx) < self.num_box_pairs_per_image * self.positive_fraction:
+                    sampled_idx = torch.cat([
+                        pos_idx, neg_idx[torch.randperm(len(neg_idx))[
+                            :int(len(pos_idx) * (1-self.positive_fraction) / self.positive_fraction)]]
+                    ])
+                else:
+                    sampled_idx = torch.cat([
+                        pos_idx[torch.randperm(len(pos_idx))[
+                            :int(self.num_box_pairs_per_image * self.positive_fraction)]],
+                        neg_idx[torch.randperm(len(neg_idx))[
+                            :int(self.num_box_pairs_per_image * (1-self.positive_fraction))]]    
+                    ])
+                paired_idx = paired_idx[sampled_idx, :]
+                labels = labels[sampled_idx, :]
 
             box_pair_idx.append(paired_idx)
             box_pair_labels.append(labels)
@@ -158,6 +190,8 @@ class InteractionHead(nn.Module):
         """
         if self.training and targets is None:
             raise AssertionError("Targets should be passed during training")
+        if not self.training:
+            self.remove_low_confidence_detections(detections)
 
         box_coords = [detection['boxes'] for detection in detections]
         box_labels = [detection['labels'] for detection in detections]
