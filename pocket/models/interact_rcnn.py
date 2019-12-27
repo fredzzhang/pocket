@@ -8,8 +8,8 @@ Australian Centre for Robotic Vision
 """
 
 import torch
+import torchvision.ops.boxes as box_ops
 from torch import nn
-from torchvision.ops.boxes import box_iou
 from torchvision.ops._utils import _cat
 
 class InteractionHead(nn.Module):
@@ -30,7 +30,7 @@ class InteractionHead(nn.Module):
             pooler_output_shape, representation_size, num_classes,
             object_class_to_target_class,
             fg_iou_thresh=0.5, num_box_pairs_per_image=512, positive_fraction=0.25,
-            detection_score_thresh=0.2):
+            box_score_thresh=0.2, box_nms_thresh=0.5):
         
         super().__init__()
 
@@ -50,18 +50,28 @@ class InteractionHead(nn.Module):
         self.fg_iou_thresh = fg_iou_thresh
         self.num_box_pairs_per_image = num_box_pairs_per_image
         self.positive_fraction = positive_fraction
-        self.detection_score_thresh = detection_score_thresh
+        # Parameters used to filter box detections during evaluation
+        self.box_score_thresh = box_score_thresh
+        self.box_nms_thresh = box_nms_thresh
 
-    def remove_low_confidence_detections(self, detections):
+    def filter_detections(self, detections):
         """
         detections(list[dict]): Object detections with keys boxes(Tensor[N,4]), 
             labels(Tensor[N]) and scores(Tensor[N])
         """
         for detection in detections:
-            keep_idx = torch.nonzero(detection['scores'] >= self.detection_score_thresh).squeeze()
-            detection['boxes'] = detection['boxes'][keep_idx, :].view(-1, 4)
-            detection['scores'] = detection['scores'][keep_idx].view(-1)
-            detection['labels'] = detection['labels'][keep_idx].view(-1)
+            boxes, scores, labels = detection.values()
+            # Remove low scoring boxes
+            keep_idx = torch.nonzero(scores > self.box_score_thresh).squeeze(1)
+            boxes = boxes[keep_idx, :].view(-1, 4)
+            scores = scores[keep_idx].view(-1)
+            labels = labels[keep_idx].view(-1)
+
+            # Class-wise non-maximum suppresion
+            keep_idx = box_ops.batched_nms(boxes, scores, labels, self.box_nms_thresh)
+            boxes = boxes[keep_idx, :].view(-1, 4)
+            scores = scores[keep_idx].view(-1)
+            labels = labels[keep_idx].view(-1)
 
     def pair_up_boxes_and_assign_to_targets(self, boxes, labels, targets=None):
         """
@@ -95,8 +105,8 @@ class InteractionHead(nn.Module):
             if self.training:
                 target_in_image = targets[idx]  
                 fg_match = torch.nonzero(torch.min(
-                    box_iou(paired_boxes[:, :4], target_in_image['boxes_h']),
-                    box_iou(paired_boxes[:, 4:], target_in_image['boxes_o'])
+                    box_ops.box_iou(paired_boxes[:, :4], target_in_image['boxes_h']),
+                    box_ops.box_iou(paired_boxes[:, 4:], target_in_image['boxes_o'])
                 ) >= self.fg_iou_thresh)
                 labels[
                     fg_match[:, 0], 
@@ -185,7 +195,7 @@ class InteractionHead(nn.Module):
         if self.training and targets is None:
             raise AssertionError("Targets should be passed during training")
         if not self.training:
-            self.remove_low_confidence_detections(detections)
+            self.filter_detections(detections)
 
         box_coords = [detection['boxes'] for detection in detections]
         box_labels = [detection['labels'] for detection in detections]
