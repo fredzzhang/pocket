@@ -14,20 +14,26 @@ from torchvision.ops._utils import _cat
 
 class InteractionHead(nn.Module):
     """
+    Interaction head that constructs and classifies box pairs based on object detections
+
     Arguments:
-        box_pair_pooler(nn.Module)
+        box_pair_pooler(BoxPairMultiScaleRoIAlign): The module that applies a mask on the union of 
+            a box pair and proceed to extract pooled features based on torchvision.ops.MultiScaleRoIAlign
         pooler_output_shape(tuple): (C, H, W)
         representation_size(int): Size of the intermediate representation
         num_classes(int): Number of output classes
         object_class_to_target_class(list[Tensor]): Each element in the list maps an object class
             to corresponding target classes
-        fg_iou_thresh(float)
+        fg_iou_thresh(float): Minimum intersection over union between proposed box pairs and ground
+            truth box pairs to be considered as positive
         num_box_pairs_per_image(int): Number of box pairs used in training for each image
         positive_fraction(float): The propotion of positive box pairs used in training
     """
     def __init__(self,
             box_pair_pooler,
-            pooler_output_shape, representation_size, num_classes,
+            pooler_output_shape, 
+            representation_size, 
+            num_classes,
             object_class_to_target_class,
             fg_iou_thresh=0.5, num_box_pairs_per_image=512, positive_fraction=0.25,
             box_score_thresh=0.2, box_nms_thresh=0.5):
@@ -56,11 +62,14 @@ class InteractionHead(nn.Module):
 
     def filter_detections(self, detections):
         """
-        detections(list[dict]): Object detections with keys boxes(Tensor[N,4]), 
-            labels(Tensor[N]) and scores(Tensor[N])
+        detections(list[dict]): Object detections with following keys 
+            "boxes": Tensor[N,4]
+            "labels": Tensor[N] 
+            "scores": Tensor[N]
         """
         for detection in detections:
             boxes, scores, labels = detection.values()
+
             # Remove low scoring boxes
             keep_idx = torch.nonzero(scores > self.box_score_thresh).squeeze(1)
             boxes = boxes[keep_idx, :].view(-1, 4)
@@ -73,108 +82,173 @@ class InteractionHead(nn.Module):
             scores = scores[keep_idx].view(-1)
             labels = labels[keep_idx].view(-1)
 
-    def pair_up_boxes_and_assign_to_targets(self, boxes, labels, targets=None):
+    def map_object_scores_to_interaction_scores(self, scores, labels, paired_idx):
         """
-        boxes(list[Tensor[N, 4]])
-        labels(list[Tensor[N]])
-        target(list[dict])
+        Arguments:
+            scores(Tensor[N]): Object confidence scores
+            labels(Tensor[N]): Object labels of HICO80 with zero-based index
+            paired_idx(Tensor[M, 2])
+        Returns:
+            mapped_scores(Tensor[M, K]): Object confidence scores mapped to interaction classes
+                that contain the corresponding object
+        """
+        mapped_scores = torch.zeros(len(paired_idx), self.num_classes,
+            dtype=scores.dtype, device=scores.device)
+
+        for idx, (h_idx, o_idx) in enumerate(paired_idx):
+            mapped_scores[idx, self.object_class_to_target_class[labels[o_idx]]] = \
+                scores[h_idx] * scores[o_idx]
+        
+        return mapped_scores
+
+    def append_ground_truth_box_pairs(self, boxes_h, boxes_o, prior_scores, targets):
+        """
+        Arguments:
+            boxes_h(Tensor[N, 4])
+            boxes_o(Tensor[N, 4])
+            prior_scores(Tensor[N, K])
+            targets(dict[Tensor]): {
+                "boxes_h": Tensor[G, 4],
+                "boxes_o": Tensor[G, 4],
+                "object": Tensor[G]
+            }
+        Returns:
+            boxes_h(Tensor[N+G, 4])
+            ...
+        """
+        boxes_h = torch.cat([boxes_h, targets['boxes_h']], 0)
+        boxes_o = torch.cat([boxes_o, targets['boxes_o']], 0)
+
+        gt_scores = torch.zeros(len(targets['boxes_h']), self.num_classes)
+        for idx, obj_cls in enumerate(targets['object']):
+            gt_scores[idx, self.object_class_to_target_class[obj_cls]] = 1
+        prior_scores = torch.cat([prior_scores, gt_scores], 0)
+
+        return boxes_h, boxes_o, prior_scores
+
+    def subsample(self, labels):
+        """
+        Arguments:
+            labels(Tensor[N, K]): Binary labels
+        Returns:
+            Tensor[M]
+        """
+        is_positive = labels.sum(1)
+        pos_idx = torch.nonzero(is_positive).squeeze(1)
+        neg_idx = torch.nonzero(is_positive == 0).squeeze(1)
+
+        # If there is a lack of positives, use all and keep the ratio
+        if len(pos_idx) < self.num_box_pairs_per_image * self.positive_fraction:
+            num_neg_to_sample = int(len(pos_idx) 
+                * (1 - self.positive_fraction) / self.positive_fraction)
+            return torch.cat([
+                pos_idx,
+                neg_idx[torch.randperm(len(neg_idx))[:num_neg_to_sample]],
+            ])
+        else:
+            num_pos_to_sample = int(self.num_box_pairs_per_image * self.positive_fraction)
+            num_neg_to_sample = self.num_box_pairs_per_image - num_pos_to_sample
+            return torch.cat([
+                pos_idx[torch.randperm(len(pos_idx))[:num_pos_to_sample]],
+                neg_idx[torch.randperm(len(neg_idx))[:num_neg_to_sample]],
+            ])
+
+    def pair_up_boxes_and_assign_to_targets(self, boxes, labels, scores, targets=None):
+        """
+        Arguments:
+            boxes(list[Tensor[N, 4]])
+            labels(list[Tensor[N]]): Object labels of HICO80 with zero-based index
+            scores(list[Tensor[N]]): Object confidence scores
+            targets(dict[Tensor]): {
+                "boxes_h": Tensor[G, 4],
+                "boxes_o": Tensor[G, 4],
+                "hoi": Tensor[G]
+                "object": Tensor[G]
+            }
+        Returns:
+            all_boxes_h(list[Tensor[M, 4]])
+            all_boxes_o(list[Tensor[M, 4]])
+            all_interactions(list[Tensor[M, K]])
+            all_prior_scores(list[Tensor[M, K]])
         """
         if self.training and targets is None:
             raise AssertionError("Targets should be passed during training")
         
-        box_pair_idx = []
-        box_pair_labels = []
+        all_boxes_h = []
+        all_boxes_o = []
+        all_interactions = []
+        all_prior_scores = []
         for idx in range(len(boxes)):
             object_cls = labels[idx]
             # Find detections of human instances
-            h_idx = (object_cls == 49).nonzero().squeeze()
+            h_idx = torch.nonzero(object_cls == 49).squeeze(1)
             paired_idx = torch.cat([
                 v.flatten()[:, None] for v in torch.meshgrid(
-                    h_idx, 
-                    torch.arange(len(object_cls))
-                )
+                    h_idx, torch.arange(len(object_cls)))
             ], 1)
+
             # Remove pairs of the same human instance
-            keep_idx = (paired_idx[:, 0] != paired_idx[:, 1]).nonzero().squeeze()
+            keep_idx = (paired_idx[:, 0] != paired_idx[:, 1]).nonzero().squeeze(1)
             paired_idx = paired_idx[keep_idx, :].view(-1, 2)
 
-            paired_boxes = boxes[idx][paired_idx, :].view(-1, 8)
-            
-            labels = torch.zeros(paired_boxes.shape[0], self.num_classes) \
-                if self.training else None
+            # Construct box pairs
+            boxes_h = boxes[idx][paired_idx[:, 0]].view(-1, 4)
+            boxes_o = boxes[idx][paired_idx[:, 1]].view(-1, 4)
+            interactions = None
+            prior_scores = self.map_object_scores_to_interaction_scores(
+                scores[idx], labels[idx], paired_idx)
+
+            # Assign labels to constructed box pairs
             if self.training:
-                target_in_image = targets[idx]  
+                target_in_image = targets[idx]
+                boxes_h, boxes_o, prior_scores = self.append_ground_truth_box_pairs(
+                    boxes_h, boxes_o, prior_scores, target_in_image)
+
+                interactions = torch.zeros(len(boxes_h), self.num_classes)
+
                 fg_match = torch.nonzero(torch.min(
-                    box_ops.box_iou(paired_boxes[:, :4], target_in_image['boxes_h']),
-                    box_ops.box_iou(paired_boxes[:, 4:], target_in_image['boxes_o'])
-                ) >= self.fg_iou_thresh)
-                labels[
+                    box_ops.box_iou(boxes_h, target_in_image['boxes_h']),
+                    box_ops.box_iou(boxes_o, target_in_image['boxes_o'])
+                ) >= self.fg_iou_thresh).view(-1, 2)
+                interactions[
                     fg_match[:, 0], 
                     target_in_image['hoi'][fg_match[:, 1]]
                 ] = 1
-                # Sample up to a specified number of box pairs
-                label_sum = labels.sum(1)
-                pos_idx = label_sum.nonzero().squeeze()
-                neg_idx = (label_sum == 0).nonzero().squeeze()
-                # Use all positive samples if there are fewer than specified
-                if len(pos_idx) < self.num_box_pairs_per_image * self.positive_fraction:
-                    sampled_idx = torch.cat([
-                        pos_idx, neg_idx[torch.randperm(len(neg_idx))[
-                            :int(len(pos_idx) * (1-self.positive_fraction) / self.positive_fraction)]]
-                    ])
-                else:
-                    sampled_idx = torch.cat([
-                        pos_idx[torch.randperm(len(pos_idx))[
-                            :int(self.num_box_pairs_per_image * self.positive_fraction)]],
-                        neg_idx[torch.randperm(len(neg_idx))[
-                            :int(self.num_box_pairs_per_image * (1-self.positive_fraction))]]    
-                    ])
-                paired_idx = paired_idx[sampled_idx, :].view(-1, 2)
-                labels = labels[sampled_idx, :].view(-1, 2)
 
-            box_pair_idx.append(paired_idx)
-            box_pair_labels.append(labels)
+                # Subsample up to a specified number of box pairs 
+                # with fixed positive-negative ratio
+                sampled_idx = self.subsample(labels)
+                boxes_h = boxes_h[sampled_idx].view(-1, 4)
+                boxes_o = boxes_o[sampled_idx].view(-1, 4)
+                interactions = interactions[sampled_idx].view(-1, self.num_classes)
+                prior_scores = prior_scores[sampled_idx].view(-1, self.num_classes)
 
-        return box_pair_idx, box_pair_labels
+            all_boxes_h.append(boxes_h)
+            all_boxes_o.append(boxes_o)
+            all_interactions.append(interactions)
+            all_prior_scores.append(prior_scores)
 
-    def map_object_scores_to_interaction_scores(self, box_scores, box_labels, box_pair_idx):
-        detection_scores = _cat([
-            scores[per_image_pair_idx[:, 0]] * scores[per_image_pair_idx[:, 1]] \
-                for per_image_pair_idx, scores in zip(box_pair_idx, box_scores)
-        ])
-        detection_labels = _cat([
-            labels[per_image_pair_idx[:, 1]] for per_image_pair_idx, labels in zip(box_pair_idx, box_labels)
-        ])
+        return all_boxes_h, all_boxes_o, all_interactions, all_prior_scores
 
-        mapped_scores = torch.zeros(len(detection_scores), self.num_classes,
-            dtype=detection_scores.dtype, device=detection_scores.device)
-        for idx, (obj, score) in enumerate(zip(detection_labels, detection_scores)):
-            mapped_scores[idx, self.object_class_to_target_class[obj]] = score
-        
-        return mapped_scores
 
-    def compute_interaction_classification_loss(self, class_logits, detection_scores, box_pair_labels):
-        detection_scores = detection_scores.flatten()
-        classification_scores = torch.sigmoid(class_logits).flatten()
-        # Disregard the interaction classes that do not contain the detected object
-        keep_idx = detection_scores.nonzero().squeeze()
-
+    def compute_interaction_classification_loss(self, class_logits, prior_scores, box_pair_labels):
+        # TODO Decide whether to use prior scores to compute loss or not
         return torch.nn.functional.binary_cross_entropy_with_logits(
-            classification_scores[keep_idx], box_pair_labels.flatten()[keep_idx])
+            class_logits, box_pair_labels)
 
-    def postprocess(self, class_logits, detection_scores, boxes_h, boxes_o):
+    def postprocess(self, class_logits, prior_scores, boxes_h, boxes_o):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
-        interaction_scores = (detection_scores
+        interaction_scores = (_cat(prior_scores)
                 * torch.sigmoid(class_logits)).split(num_boxes)
 
         results = []
         for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
             keep_idx = scores.nonzero()
             results.append(dict(
-                boxes_h = b_h[keep_idx[:, 0], :],
-                boxes_o = b_o[keep_idx[:, 0], :],
-                labels=keep_idx[:, 1],
-                scores=scores[keep_idx[:, 0], keep_idx[:, 1]],
+                boxes_h = b_h[keep_idx[:, 0]].view(-1, 4),
+                boxes_o = b_o[keep_idx[:, 0]].view(-1, 4),
+                labels = keep_idx[:, 1].view(-1),
+                scores = scores[keep_idx[:, 0], keep_idx[:, 1]].view(-1),
             ))
 
         return results
@@ -184,47 +258,49 @@ class InteractionHead(nn.Module):
         Arguments:
             features(list[Tensor]): Image pyramid with each tensor corresponding to
                 a feature level
-            detections(list[dict]): Object detections with keys boxes(Tensor[N,4]), 
-                labels(Tensor[N]) and scores(Tensor[N])
-            target(list[dict]): Targets with keys boxes_h(Tensor[N,4]), boxes_o([Tensor[N,4]])
-                hoi(Tensor[N]), object(Tensor[N]) and verb(Tensor[N])
+            detections(list[dict]): Object detections with following keys 
+                boxes(Tensor[N,4]),
+                labels(Tensor[N]) 
+                scores(Tensor[N])
+            targets(list[dict]): Interaction targets with the following keys
+                boxes_h(Tensor[N, 4])
+                boxes_o(Tensor[N, 4])
+                hoi(Tensor[N])
+                object(Tensor[N])
+                verb(Tensor[N])
         Returns:
-            boxes(list[Tensor[N, 4]])
-            scores(list[Tensor[N, C]])
+            loss(dict): During training, return a dict that contains the interaction loss
+            results(list[dict]): During evaluation, return a dict of detected interacitons
+                "boxes_h": Tensor[M, 4]
+                "boxes_o": Tensor[M, 4]
+                "labels": Tensor[M]
+                "scores": Tensor[M]
         """
-        if self.training and targets is None:
-            raise AssertionError("Targets should be passed during training")
-        if not self.training:
+        if self.training:
+            assert targets is not None, "Targets should be passed during training"
+        else:
             self.filter_detections(detections)
 
         box_coords = [detection['boxes'] for detection in detections]
         box_labels = [detection['labels'] for detection in detections]
         box_scores = [detection['scores'] for detection in detections]
 
-        box_pair_idx, box_pair_labels = self.pair_up_boxes_and_assign_to_targets(
-            box_coords, box_labels, targets)
-
-        boxes_h = [boxes[per_image_pair_idx[:, 0]] 
-            for per_image_pair_idx, boxes in zip(box_pair_idx, box_coords)]
-        boxes_o = [boxes[per_image_pair_idx[:, 1]] 
-            for per_image_pair_idx, boxes in zip(box_pair_idx, box_coords)]
+        boxes_h, boxes_o, box_pair_labels, prior_scores = self.pair_up_boxes_and_assign_to_targets(
+            box_coords, box_labels, box_scores, targets)
 
         box_pair_features = self.box_pair_pooler(features, boxes_h, boxes_o)
         box_pair_features = box_pair_features.flatten(start_dim=1)
         box_pair_features = self.box_pair_head(box_pair_features)
         class_logits = self.box_pair_logistic(box_pair_features)
 
-        detection_scores = self.map_object_scores_to_interaction_scores(
-            box_scores, box_labels, box_pair_idx)
-
         if self.training:
             loss = dict(interaction_loss=self.compute_interaction_classification_loss(
-                class_logits, detection_scores, torch.cat(box_pair_labels, 0)
+                class_logits, _cat(prior_scores), _cat(box_pair_labels)
             ))
             return loss
         
         results = self.postprocess(
-            class_logits, detection_scores, boxes_h, boxes_o)
+            class_logits, prior_scores, boxes_h, boxes_o)
 
         return results
 
