@@ -159,8 +159,10 @@ class AveragePrecisionMeter:
         prec, rec = tuple_
         ap = 0
         for idx in range(prec.numel()):
-            ap +=  prec[idx:].max() * rec[idx] if idx == 0 \
-                else 0.5 * (prec[idx:].max() + prec[idx - 1:].max()) * (rec[idx] - rec[idx - 1])
+            # Precompute max for reuse
+            max_ = prec[idx:].max()
+            ap +=  max_ * rec[idx] if idx == 0 \
+                else 0.5 * (max_ + torch.cat([prec[idx - 1], max_]).max()) * (rec[idx] - rec[idx - 1])
         return ap
 
     @staticmethod
