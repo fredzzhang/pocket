@@ -17,6 +17,8 @@ class InteractionHead(nn.Module):
     Interaction head that constructs and classifies box pairs based on object detections
 
     Arguments:
+
+    [REQUIRES ARGS]
         box_pair_pooler(BoxPairMultiScaleRoIAlign): The module that applies a mask on the union of 
             a box pair and proceed to extract pooled features based on torchvision.ops.MultiScaleRoIAlign
         pooler_output_shape(tuple): (C, H, W)
@@ -24,10 +26,15 @@ class InteractionHead(nn.Module):
         num_classes(int): Number of output classes
         object_class_to_target_class(list[Tensor]): Each element in the list maps an object class
             to corresponding target classes
+
+    [OPTIONAL ARGS]
         fg_iou_thresh(float): Minimum intersection over union between proposed box pairs and ground
             truth box pairs to be considered as positive
         num_box_pairs_per_image(int): Number of box pairs used in training for each image
         positive_fraction(float): The propotion of positive box pairs used in training
+        box_score_thresh(float): The box score threshold used to filter object detections 
+            during evaluation
+        box_nms_thresh(float): NMS threshold to filter object detections during evaluation
     """
     def __init__(self,
             box_pair_pooler,
@@ -168,8 +175,9 @@ class InteractionHead(nn.Module):
         Returns:
             all_boxes_h(list[Tensor[M, 4]])
             all_boxes_o(list[Tensor[M, 4]])
-            all_interactions(list[Tensor[M, K]])
-            all_prior_scores(list[Tensor[M, K]])
+            all_interactions(list[Tensor[M, K]]): Binary labels for each box pair
+            all_prior_scores(list[Tensor[M, K]]): Product of human and object box scores 
+                mapped to interaction classes
         """
         if self.training and targets is None:
             raise AssertionError("Targets should be passed during training")
@@ -232,9 +240,13 @@ class InteractionHead(nn.Module):
 
 
     def compute_interaction_classification_loss(self, class_logits, prior_scores, box_pair_labels):
-        # TODO Decide whether to use prior scores to compute loss or not
-        return torch.nn.functional.binary_cross_entropy_with_logits(
-            class_logits, box_pair_labels)
+        # Ignore interaction classes with zero prior scores
+        keep_idx = prior_scores.nonzero()
+        interaction_scores = prior_scores[keep_idx[:, 0], keep_idx[:, 1]] * \
+            torch.sigmoid(class_logits)[keep_idx[:, 0], keep_idx[:, 1]]
+        labels = box_pair_labels[keep_idx[:, 0], keep_idx[:, 1]]
+
+        return torch.nn.functional.binary_cross_entropy(interaction_scores, labels)
 
     def postprocess(self, class_logits, prior_scores, boxes_h, boxes_o):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
