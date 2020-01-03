@@ -187,12 +187,11 @@ class InteractionHead(nn.Module):
         all_interactions = []
         all_prior_scores = []
         for idx in range(len(boxes)):
-            object_cls = labels[idx]
             # Find detections of human instances
-            h_idx = torch.nonzero(object_cls == 49).squeeze(1)
+            h_idx = torch.nonzero(labels[idx] == 49).squeeze(1)
             paired_idx = torch.cat([
                 v.flatten()[:, None] for v in torch.meshgrid(
-                    h_idx, torch.arange(len(object_cls)))
+                    h_idx, torch.arange(len(labels[idx])))
             ], 1)
 
             # Remove pairs of the same human instance
@@ -225,7 +224,7 @@ class InteractionHead(nn.Module):
 
                 # Subsample up to a specified number of box pairs 
                 # with fixed positive-negative ratio
-                sampled_idx = self.subsample(labels)
+                sampled_idx = self.subsample(interactions)
                 boxes_h = boxes_h[sampled_idx].view(-1, 4)
                 boxes_o = boxes_o[sampled_idx].view(-1, 4)
                 interactions = interactions[sampled_idx].view(-1, self.num_classes)
