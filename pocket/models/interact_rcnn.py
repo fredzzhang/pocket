@@ -74,8 +74,9 @@ class InteractionHead(nn.Module):
             "labels": Tensor[N] 
             "scores": Tensor[N]
         """
+        results = []
         for detection in detections:
-            boxes, scores, labels = detection.values()
+            boxes, labels, scores = detection.values()
 
             # Remove low scoring boxes
             keep_idx = torch.nonzero(scores > self.box_score_thresh).squeeze(1)
@@ -88,6 +89,10 @@ class InteractionHead(nn.Module):
             boxes = boxes[keep_idx, :].view(-1, 4)
             scores = scores[keep_idx].view(-1)
             labels = labels[keep_idx].view(-1)
+
+            results.append(dict(boxes=boxes, labels=labels, scores=scores))
+
+        return results
 
     def map_object_scores_to_interaction_scores(self, scores, labels, paired_idx):
         """
@@ -290,7 +295,7 @@ class InteractionHead(nn.Module):
         if self.training:
             assert targets is not None, "Targets should be passed during training"
         else:
-            self.filter_detections(detections)
+            detections = self.filter_detections(detections)
 
         box_coords = [detection['boxes'] for detection in detections]
         box_labels = [detection['labels'] for detection in detections]
