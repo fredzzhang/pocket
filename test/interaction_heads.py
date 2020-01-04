@@ -12,11 +12,12 @@ import json
 import torch
 import argparse
 import torchvision
-
 from pocket.data import HICODet
 from pocket.models import fasterrcnn_resnet_fpn
 from pocket.models.interact_rcnn import InteractionHead
 from pocket.ops import BoxPairMultiScaleRoIAlign, to_tensor, ToTensor
+
+torch.set_printoptions(threshold=1000)
 
 def test(args):
 
@@ -45,6 +46,8 @@ def test(args):
         1024, 600,
         object_class_to_target_class=hico_obj_to_hoi
     )
+    if args.mode != 'train':
+        interaction_head.eval()
 
     image, target = dataset[args.image_idx]
     detection_path = os.path.join(args.data_root, 
@@ -66,7 +69,7 @@ def test(args):
     if args.mode == 'train':
         print(results['interaction_loss'])
     else:
-        print(results['labels'].shape)
+        print(results[0]['labels'])
 
 if __name__ == '__main__':
 
