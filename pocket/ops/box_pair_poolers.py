@@ -48,6 +48,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import torch
 from torchvision.ops.poolers import LevelMapper
+from torchvision.ops.boxes import clip_boxes_to_image
 from torchvision.ops._utils import convert_boxes_to_roi_format
 
 from .masked_roi_align import masked_roi_align
@@ -193,6 +194,11 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
         boxes_h[:, 1:] *= scale
         boxes_o[:, 1:] *= scale
 
+        feature_size = features.shape[2:]
+
+        boxes_h[:, 1:] = clip_boxes_to_image(boxes_h[:, 1:], feature_size)
+        boxes_o[:, 1:] = clip_boxes_to_image(boxes_o[:, 1:], feature_size)
+
         for idx, mask in enumerate(masks):
             mask_h = self.fill_masks_for_boxes(mask, boxes_h[idx, 1:])
             mask_o = self.fill_masks_for_boxes(mask, boxes_o[idx, 1:])
@@ -208,13 +214,12 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
             boxes_1(Tensor[N, 5])
             boxes_2(Tensor[N, 5])
         """
-        box_union = boxes_1.clone()
-        box_union[:, 1] = torch.min(boxes_1[:, 1], boxes_2[:, 1])
-        box_union[:, 2] = torch.min(boxes_1[:, 2], boxes_2[:, 2])
-        box_union[:, 3] = torch.max(boxes_1[:, 3], boxes_2[:, 3])
-        box_union[:, 4] = torch.max(boxes_1[:, 4], boxes_2[:, 4])
+        boxes_1[:, 1] = torch.min(boxes_1[:, 1], boxes_2[:, 1])
+        boxes_1[:, 2] = torch.min(boxes_1[:, 2], boxes_2[:, 2])
+        boxes_1[:, 3] = torch.max(boxes_1[:, 3], boxes_2[:, 3])
+        boxes_1[:, 4] = torch.max(boxes_1[:, 4], boxes_2[:, 4])
         
-        return box_union
+        return boxes_1
 
     def forward(self, features, boxes_h, boxes_o):
         """
