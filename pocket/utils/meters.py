@@ -488,6 +488,7 @@ class DetectionAPMeter:
         if isinstance(output, torch.Tensor) and \
                 isinstance(prediction, torch.Tensor) and \
                 isinstance(labels, torch.Tensor):
+            prediction = prediction.long()
             for out, pred, gt in zip(output, prediction, labels):
                 self._output_temp[pred.item()].append(out.item())
                 self._labels_temp[pred.item()].append(gt.item())
