@@ -14,41 +14,49 @@ __all__ = [
     'to_tensor', 'ToTensor'
 ]
 
-def _to_list_of_tensor(x, dtype=None):
-    return [torch.as_tensor(item, dtype=dtype) for item in x]
+def _to_list_of_tensor(x, dtype=None, device=None):
+    return [torch.as_tensor(item, dtype=dtype, device=device) for item in x]
 
-def _to_tuple_of_tensor(x, dtype=None):
-    return (torch.as_tensor(item, dtype=dtype) for item in x)
+def _to_tuple_of_tensor(x, dtype=None, device=None):
+    return (torch.as_tensor(item, dtype=dtype, device=device) for item in x)
 
-def _to_dict_of_tensor(x, dtype=None):
-    return dict([(k, torch.as_tensor(v, dtype=dtype)) for k, v in x.items()])
+def _to_dict_of_tensor(x, dtype=None, device=None):
+    return dict([(k, torch.as_tensor(v, dtype=dtype, device=device)) for k, v in x.items()])
 
-def to_tensor(x, input_format='tensor', dtype=None):
+def to_tensor(x, input_format='tensor', dtype=None, device=None):
     """Convert input data to tensor based on its format"""
     if input_format == 'tensor':
-        return torch.as_tensor(x, dtype=dtype)
+        return torch.as_tensor(x, dtype=dtype, device=device)
     elif input_format == 'pil':
-        return torchvision.transforms.functional.to_tensor(x)
+        return torchvision.transforms.functional.to_tensor(x).to(
+            dtype=dtype, device=device)
     elif input_format == 'list':
-        return _to_list_of_tensor(x, dtype)
+        return _to_list_of_tensor(x, dtype=dtype, device=device)
     elif input_format == 'tuple':
-        return _to_tuple_of_tensor(x, dtype)
+        return _to_tuple_of_tensor(x, dtype=dtype, device=device)
     elif input_format == 'dict':
-        return _to_dict_of_tensor(x, dtype)
+        return _to_dict_of_tensor(x, dtype=dtype, device=device)
     else:
         raise ValueError("Unsupported format {}".format(input_format))
 
 class ToTensor:
     """Convert to tensor"""
-    def __init__(self, input_format='tensor', dtype=None):
+    def __init__(self, input_format='tensor', dtype=None, device=None):
         self.input_format = input_format
         self.dtype = dtype
+        self.device = device
     def __call__(self, x):
-        return to_tensor(x, self.input_format, self.dtype)
+        return to_tensor(x, 
+            input_format=self.input_format,
+            dtype=self.dtype,
+            device=self.device
+        )
     def __repr__(self):
         reprstr = self.__class__.__name__ + '('
         reprstr += 'input_format=\'{}\''.format(self.input_format)
         reprstr += ', dtype='
         reprstr += repr(self.dtype)
+        reprstr += ', device='
+        reprstr += repr(self.device)
         reprstr += ')'
         return reprstr
