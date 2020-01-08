@@ -187,7 +187,7 @@ class AveragePrecisionMeter:
             # Precompute max for reuse
             max_ = prec[idx:].max()
             ap +=  max_ * rec[idx] if idx == 0 \
-                else 0.5 * (max_ + torch.cat([prec[idx - 1], max_]).max()) * (rec[idx] - rec[idx - 1])
+                else 0.5 * (max_ + torch.max(prec[idx - 1], max_)) * (rec[idx] - rec[idx - 1])
         return ap
 
     @staticmethod
@@ -330,7 +330,8 @@ class AveragePrecisionMeter:
             return self.compute_ap(output=self._output, labels=self._labels,
                 algorithm=self.algorithm, chunksize=self._chunksize)
         else:
-            print("WARNING: The output scores and labels are both empty.")
+            print("WARNING: Collected results are empty. "
+                "Return zero AP for all class.")
             return torch.zeros(self._output.shape[1])
 
 class DetectionAPMeter:
@@ -414,7 +415,7 @@ class DetectionAPMeter:
         # Same logic in AveragePrecisionMeter.compute_ap
         if chunksize == -1:
             chunksize, extra = divmod(
-                    output.shape[1],
+                    len(output),
                     multiprocessing.cpu_count() * 4)
             if extra:
                 chunksize += 1
@@ -430,21 +431,27 @@ class DetectionAPMeter:
                 AveragePrecisionMeter.compute_per_class_ap_as_auc
         else:
             raise ValueError("Unknown algorithm option {}.".format(algorithm))
-        # Compose the target function by merging p-r computation and AP evaluation
-        # NOTE: When either output scores or binary labels are of length zero, 
-        # zero AP will be returned
-        target_func = lambda out, gt: algorithm_handle(
-            cls.compute_precision_and_recall(out, gt)) if len(out) and len(gt) else 0
 
         with multiprocessing.Pool() as pool:
             for idx, result in enumerate(pool.imap(
-                func=target_func,
-                iterable=[(out, gt) for out, gt in zip(output, labels)],
+                func=cls.compute_ap_for_each,
+                iterable=[(idx, out, gt, algorithm_handle) 
+                    for idx, (out, gt) in enumerate(zip(output, labels))],
                 chunksize=chunksize
             )):
                 ap[idx] = result
 
         return ap
+
+    @classmethod
+    def compute_ap_for_each(cls, tuple_):
+        idx, output, labels, algorithm = tuple_
+        if len(output) and len(labels):
+            return algorithm(cls.compute_precision_and_recall(output, labels))
+        else:
+            print("WARNING: Collected results are empty. "
+                "Return zero AP for class {}.".format(idx))
+            return 0
 
     @staticmethod
     def compute_precision_and_recall(output, labels, eps=1e-8):
@@ -461,11 +468,11 @@ class DetectionAPMeter:
 
         tp = labels[order]
         fp = 1 - tp
-        tp = tp.cumsum()
-        fp = fp.cumsum()
+        tp = tp.cumsum(0)
+        fp = fp.cumsum(0)
 
         prec = tp / (tp + fp)
-        rec = tp (labels.sum() + eps)
+        rec = tp / (labels.sum() + eps)
 
         return prec, rec
 
