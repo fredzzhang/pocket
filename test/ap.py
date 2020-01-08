@@ -26,9 +26,7 @@ def test_1(alg):
     # Test on-the-fly result collection
     meter.append(output, labels)
 
-    ap = meter.eval()
-
-    print(ap.tolist())
+    return meter.eval()
 
 def test_2(alg):
     
@@ -53,12 +51,18 @@ def test_2(alg):
         torch.randint(0, 2, (100,)).clamp(0, 1)
     )
 
-    ap = meter.eval()
-
-    print(ap.tolist())
+    return meter.eval()
 
 if __name__ == '__main__':
     alg = 'AUC'
+    niter = 100
 
-    test_1(alg)
-    test_2(alg)
+    ap = torch.zeros(4)
+    for _ in range(niter):
+        ap += test_1(alg)
+    print(ap / niter)
+
+    ap = torch.zeros(4)
+    for _ in range(niter):
+        ap += test_2(alg)
+    print(ap / niter)
