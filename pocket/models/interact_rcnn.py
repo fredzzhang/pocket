@@ -302,8 +302,8 @@ class InteractionHead(nn.Module):
             results(list[dict]): During evaluation, return a dict of detected interacitons
                 "boxes_h": Tensor[M, 4]
                 "boxes_o": Tensor[M, 4]
-                "labels": Tensor[M]
-                "scores": Tensor[M]
+                "labels": list(Tensor)
+                "scores": list(Tensor)
         """
         if self.training:
             assert targets is not None, "Targets should be passed during training"
