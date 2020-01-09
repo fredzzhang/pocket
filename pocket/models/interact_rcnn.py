@@ -259,13 +259,26 @@ class InteractionHead(nn.Module):
 
         results = []
         for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
-            keep_idx = scores.nonzero()
+
+            keep_cls = [s.nonzero().squeeze(1) for s in scores]
+            keep_box = torch.as_tensor([bool(len(pred_cls)) for pred_cls in keep_cls])
+
             results.append(dict(
-                boxes_h = b_h[keep_idx[:, 0]].view(-1, 4),
-                boxes_o = b_o[keep_idx[:, 0]].view(-1, 4),
-                labels = keep_idx[:, 1].view(-1),
-                scores = scores[keep_idx[:, 0], keep_idx[:, 1]].view(-1),
+                boxes_h=b_h[keep_box].view(-1, 4),
+                boxes_o=b_o[keep_box].view(-1, 4),
+                labels=keep_cls,
+                scores=[scores[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
             ))
+
+            # Each class is treated as a seperate instance
+            #
+            # keep_idx = scores.nonzero()
+            # results.append(dict(
+            #     boxes_h = b_h[keep_idx[:, 0]].view(-1, 4),
+            #     boxes_o = b_o[keep_idx[:, 0]].view(-1, 4),
+            #     labels = keep_idx[:, 1].view(-1),
+            #     scores = scores[keep_idx[:, 0], keep_idx[:, 1]].view(-1),
+            # ))
 
         return results
 
