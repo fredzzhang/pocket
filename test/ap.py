@@ -39,8 +39,8 @@ def test_2(alg):
     labels = [
         torch.zeros(100),
         torch.ones(200),
-        torch.randint(0, 3, (150,)).clamp(0, 1),
-        torch.randint(0, 2, (250,)).clamp(0, 1),
+        torch.randint(0, 3, (150,)).clamp(0, 1),    # 66.7% positives
+        torch.randint(0, 4, (250,)).clamp(0, 1),    # 75% positives
     ]
 
     meter = DetectionAPMeter(4, algorithm=alg, output=output, labels=labels)
@@ -48,7 +48,7 @@ def test_2(alg):
     meter.append(
         torch.rand(100), 
         3 * torch.ones(100), 
-        torch.randint(0, 2, (100,)).clamp(0, 1)
+        torch.randint(0, 4, (100,)).clamp(0, 1)
     )
 
     return meter.eval()
