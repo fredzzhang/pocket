@@ -271,16 +271,6 @@ class InteractionHead(nn.Module):
                 scores=[scores[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
             ))
 
-            # Each class is treated as a seperate instance
-            #
-            # keep_idx = scores.nonzero()
-            # results.append(dict(
-            #     boxes_h = b_h[keep_idx[:, 0]].view(-1, 4),
-            #     boxes_o = b_o[keep_idx[:, 0]].view(-1, 4),
-            #     labels = keep_idx[:, 1].view(-1),
-            #     scores = scores[keep_idx[:, 0], keep_idx[:, 1]].view(-1),
-            # ))
-
         return results
 
     def forward(self, features, detections, targets=None):
@@ -372,6 +362,16 @@ class InteractRCNNTransform(transform.GeneralizedRCNNTransform):
             (h, w), image.shape[-2:])
 
         return image, target
+
+    def postprocess(self, results, image_shapes, original_image_sizes):
+
+        for pred, im_s, o_im_s in zip(results, image_shapes, original_image_sizes):
+            boxes_h, boxes_o = pred['boxes_h'], pred['boxes_o']
+            boxes_h = transform.resize_boxes(boxes_h, im_s, o_im_s)
+            boxes_o = transform.resize_boxes(boxes_o, im_s, o_im_s)
+            pred['boxes_h'], pred['boxes_o'] = boxes_h, boxes_o
+
+        return results
 
 
 class InteractRCNN(nn.Module):
