@@ -13,8 +13,7 @@ import torch
 import argparse
 import torchvision
 from pocket.data import HICODet
-from pocket.models import fasterrcnn_resnet_fpn
-from pocket.models.interact_rcnn import InteractionHead
+from pocket.models import TrainableHead
 from pocket.ops import BoxPairMultiScaleRoIAlign, to_tensor, ToTensor
 
 torch.set_printoptions(threshold=1000)
@@ -31,21 +30,9 @@ def test(args):
     with open(os.path.join(args.data_root, "hico80to600.json"), 'r') as f:
         hico_obj_to_hoi = to_tensor(json.load(f), 
             input_format='list', dtype=torch.int64)
-    
-    backbone = fasterrcnn_resnet_fpn('resnet50', pretrained=True).backbone
 
-    box_pair_pooler = BoxPairMultiScaleRoIAlign(
-        output_size=7,
-        spatial_scale=[1/4, 1/8, 1/16, 1/32],
-        sampling_ratio=2
-    )
+    interaction_head = TrainableHead(hico_obj_to_hoi)
 
-    interaction_head = InteractionHead(
-        box_pair_pooler,
-        (backbone.out_channels, 7, 7),
-        1024, 600,
-        object_class_to_target_class=hico_obj_to_hoi
-    )
     if args.mode != 'train':
         interaction_head.eval()
 
@@ -57,13 +44,9 @@ def test(args):
     with open(detection_path, 'r') as f:
         detection = to_tensor(json.load(f), input_format='dict')
 
-    features = backbone(image[None, :, :, :])
-    features = [v for v in features.values()]
-    # Remove the last max pooled features
-    features = features[:-1]
     with torch.no_grad():
         results = interaction_head(
-            features, [detection], targets=[target]
+            [image], [detection], targets=[target]
         )
 
     if args.mode == 'train':
