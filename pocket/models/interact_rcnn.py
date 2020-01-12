@@ -13,6 +13,9 @@ from torch import nn
 from torchvision.ops._utils import _cat
 from torchvision.models.detection import transform
 
+from .faster_rcnn import fasterrcnn_resnet_fpn
+from ..ops import BoxPairMultiScaleRoIAlign
+
 class InteractionHead(nn.Module):
     """
     Interaction head that constructs and classifies box pairs based on object detections
@@ -372,6 +375,90 @@ class InteractRCNNTransform(transform.GeneralizedRCNNTransform):
             pred['boxes_h'], pred['boxes_o'] = boxes_h, boxes_o
 
         return results
+
+class TrainableHead(nn.Module):
+    """
+    Add backbone to make interaction head trainable
+
+    Arguments:
+        cls_corr(list[Tensor]): One-to-many mapping from object classes to interaction classes
+        backbone(str): The name of backbone CNN to be used. 
+            Refer to torchvision.models.deteciton.backbone_utils for more details.
+    """
+    def __init__(self, cls_corr,
+            # Backbone parameters
+            backbone='resnet50', pretrained=True,
+            # Transformation parameters
+            min_size=800, max_size=1333, image_mean=None, image_std=None,
+            # Pooler parameters
+            output_size=7, spatial_scale=None, sampling_ratio=2,
+            # MLP parameters
+            representation_size=1024, num_classes=600):
+        super().__init__()
+
+        self.backbone = fasterrcnn_resnet_fpn(backbone, pretrained=pretrained).backbone
+    
+        if image_mean is None:
+            image_mean = [0.485, 0.456, 0.406]
+        if image_std is None:
+            image_std = [0.229, 0.224, 0.225]
+        self.transform = InteractRCNNTransform(min_size, max_size, image_mean, image_std)
+
+        if spatial_scale is None:
+            spatial_scale = [1/4, 1/8, 1/16, 1/32]
+        pooler = BoxPairMultiScaleRoIAlign(
+            output_size=output_size,
+            spatial_scale=spatial_scale,
+            sampling_ratio=sampling_ratio
+        )
+        
+        self.interaction_head = InteractionHead(
+            pooler,
+            (backbone.out_channels, output_size, output_size),
+            representation_size, num_classes,
+            object_class_to_target_class=cls_corr
+        )
+
+    def preprocess(self, images, detections, targets=None):
+        self.original_image_sizes = [img.shape[-2:] for img in images]
+        images, targets = self.transform(images, targets)
+
+        for det, o_im_s, im_s in zip(detections, self.original_image_sizes, images.images_sizes):
+            boxes = det['boxes']
+            boxes = transform.resize_boxes(boxes, o_im_s, im_s)
+            det['boxes'] = boxes
+
+        return images, detections, targets
+
+    def forward(self, images, detections, targets=None):
+        """
+        Arguments:
+            images(list[Tensor])
+            detections(list[dict])
+            targets(list[dict])
+        """
+        if self.training and targets is None:
+            raise ValueError("In training mode, targets should be passed")
+
+        images, detections, targets = self.preprocess(images, detections, targets)
+
+        features = self.backbone(images.tensors)
+        # Remove the last max pooled features in fpn
+        features = [v for v in features.values()[:-1]]
+        results = self.interaction_head(features, detections, targets)
+
+        if self.training:
+            return results
+
+        return self.transform.postprocess(results, images.image_sizes, self.original_image_sizes)
+
+    """Override methods to only train interaction head"""
+    def parameters(self):
+        return self.interaction_head.parameters()
+    def state_dict(self):
+        return self.interaction_head.state_dict()
+    def load_state_dict(self, state_dict):
+        self.interaction_head.load_state_dict(state_dict)
 
 
 class InteractRCNN(nn.Module):
