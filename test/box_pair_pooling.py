@@ -9,12 +9,14 @@ Australian Centre for Robotic Vision
 
 import time
 import torch
+from torchvision.ops import roi_align
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
 from pocket.ops import BoxPairMultiScaleRoIAlign
 
-def test():
+def test_1():
+    """Visualise the pooled box pair feautures"""
 
     image = torch.ones(512, 512).numpy()
 
@@ -35,7 +37,11 @@ def test():
         [256., 0., 512., 256.]
     ])
 
-    m = BoxPairMultiScaleRoIAlign(output_size=5, spatial_scale=[1/8, 1/16, 1/32], sampling_ratio=2)
+    m = BoxPairMultiScaleRoIAlign(
+        output_size=5, 
+        spatial_scale=[1/8, 1/16, 1/32], 
+        sampling_ratio=2
+    )
 
     t = time.time()
     out = m(f, [boxes_h], [boxes_o])
@@ -58,5 +64,44 @@ def test():
         plt.imshow(out[idx].squeeze().numpy())
     plt.show()
 
+def test_2():
+    """Authenticate the pooled box pair features """
+    f = torch.rand(1, 3, 512, 512)
+
+    boxes_h = torch.rand(256, 4) * 256; boxes_h[:, 2:] += boxes_h[:, :2]
+    boxes_h = torch.cat([torch.zeros(256, 1), boxes_h], 1)
+    boxes_o = torch.rand(256, 4) * 256; boxes_o[:, 2:] += boxes_o[:, :2]
+    boxes_o = torch.cat([torch.zeros(256, 1), boxes_o], 1)
+
+    boxes_union = torch.zeros_like(boxes_h)
+    boxes_union[:, 1] = torch.min(boxes_h[:, 1], boxes_o[:, 1])
+    boxes_union[:, 2] = torch.min(boxes_h[:, 2], boxes_o[:, 2])
+    boxes_union[:, 3] = torch.max(boxes_h[:, 3], boxes_o[:, 3])
+    boxes_union[:, 4] = torch.max(boxes_h[:, 4], boxes_o[:, 4])
+
+    m = BoxPairMultiScaleRoIAlign(
+        output_size=7,
+        spatial_scale=[1.0],
+        sampling_ratio=4
+    )
+    # Compute pooled box pair features
+    out1 = m([f], [boxes_h[:, 1:]], [boxes_o[:, 1:]])
+
+    masks = m.construct_masks_for_box_pairs(f, 0, boxes_h, boxes_o)
+    # Apply masks on feature maps
+    f_stacked = f[boxes_union[:, 0].long()] * masks
+    boxes_union[:, 0] = torch.arange(256)
+    # Compute pooled box union features
+    out2 = roi_align(f_stacked, boxes_union, 
+        output_size=(7,7), spatial_scale=1.0, sampling_ratio=4)
+
+    # Compare the pooled features
+    # The two feature maps should be exactly the same
+    assert out1.shape == out2.shape, \
+        "Inconsistent feature map size"
+    print("Feature maps are {}% matched.".format(
+        100 * torch.eq(out1, out2).sum() / torch.as_tensor(out1.shape).prod()))
+
 if __name__ == '__main__':
-    test()
+    test_1()
+    # test_2()
