@@ -12,26 +12,29 @@ import json
 import torch
 import argparse
 import torchvision
+import pocket
 from pocket.data import HICODet
 from pocket.models import TrainableHead
-from pocket.ops import BoxPairMultiScaleRoIAlign, to_tensor, ToTensor
 
 torch.set_printoptions(threshold=1000)
 
 def test(args):
 
+    use_gpu = torch.cuda.is_available() and args.gpu
+
     dataset = HICODet(
         root=os.path.join(args.data_root, "hico_20160224_det/images/train2015"),
         annoFile=os.path.join(args.data_root, "instances_train2015.json"),
         transform=torchvision.transforms.ToTensor(),
-        target_transform=ToTensor(input_format='dict')
+        target_transform=pocket.ops.ToTensor(input_format='dict')
     )
 
     with open(os.path.join(args.data_root, "hico80to600.json"), 'r') as f:
-        hico_obj_to_hoi = to_tensor(json.load(f), 
-            input_format='list', dtype=torch.int64)
+        hico_obj_to_hoi = json.load(f) 
 
     interaction_head = TrainableHead(hico_obj_to_hoi)
+    if use_gpu:
+        interaction_head = interaction_head.cuda()
 
     if args.mode != 'train':
         interaction_head.eval()
@@ -42,8 +45,11 @@ def test(args):
             dataset.filename(args.image_idx).replace('jpg', 'json'))
     )
     with open(detection_path, 'r') as f:
-        detection = to_tensor(json.load(f), input_format='dict')
+        detection = pocket.ops.to_tensor(json.load(f), input_format='dict')
 
+    if use_gpu:
+        image, detection, target = pocket.ops.relocate_to_cuda(
+            (image, detection, target), 0)
     with torch.no_grad():
         results = interaction_head(
             [image], [detection], targets=[target]
@@ -67,6 +73,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode',
                         default='train',
                         type=str)
+    parser.add_argument('--gpu',
+                        action='store_true',
+                        default=False)
     args = parser.parse_args()
 
     test(args)
