@@ -52,8 +52,10 @@ class InteractionHead(nn.Module):
         super().__init__()
 
         self.box_pair_pooler = box_pair_pooler
+
+        input_size = torch.as_tensor(pooler_output_shape).prod().item()
         self.box_pair_head = nn.Sequential(
-            nn.Linear(torch.as_tensor(pooler_output_shape).prod(), representation_size),
+            nn.Linear(input_size, representation_size),
             nn.ReLU(),
             nn.Linear(representation_size, representation_size),
             nn.ReLU()
@@ -112,8 +114,10 @@ class InteractionHead(nn.Module):
             dtype=scores.dtype, device=scores.device)
 
         for idx, (h_idx, o_idx) in enumerate(paired_idx):
-            mapped_scores[idx, self.object_class_to_target_class[labels[o_idx]]] = \
-                scores[h_idx] * scores[o_idx]
+            mapped_scores[
+                idx,
+                self.object_class_to_target_class[labels[o_idx]]
+            ] = scores[h_idx] * scores[o_idx]
         
         return mapped_scores
 
@@ -135,7 +139,8 @@ class InteractionHead(nn.Module):
         boxes_h = torch.cat([boxes_h, targets['boxes_h']], 0)
         boxes_o = torch.cat([boxes_o, targets['boxes_o']], 0)
 
-        gt_scores = torch.zeros(len(targets['boxes_h']), self.num_classes)
+        gt_scores = torch.zeros(len(targets['boxes_h']), self.num_classes,
+                dtype=prior_scores.dtype, device=prior_scores.device)
         for idx, obj_cls in enumerate(targets['object']):
             gt_scores[idx, self.object_class_to_target_class[obj_cls]] = 1
         prior_scores = torch.cat([prior_scores, gt_scores], 0)
@@ -159,14 +164,17 @@ class InteractionHead(nn.Module):
                 * (1 - self.positive_fraction) / self.positive_fraction)
             return torch.cat([
                 pos_idx,
-                neg_idx[torch.randperm(len(neg_idx))[:num_neg_to_sample]],
+                neg_idx[torch.randperm(len(neg_idx),
+                    device=labels.device)[:num_neg_to_sample]],
             ])
         else:
             num_pos_to_sample = int(self.num_box_pairs_per_image * self.positive_fraction)
             num_neg_to_sample = self.num_box_pairs_per_image - num_pos_to_sample
             return torch.cat([
-                pos_idx[torch.randperm(len(pos_idx))[:num_pos_to_sample]],
-                neg_idx[torch.randperm(len(neg_idx))[:num_neg_to_sample]],
+                pos_idx[torch.randperm(len(pos_idx),
+                    device=labels.device)[:num_pos_to_sample]],
+                neg_idx[torch.randperm(len(neg_idx),
+                    device=labels.device)[:num_neg_to_sample]],
             ])
 
     def pair_up_boxes_and_assign_to_targets(self, boxes, labels, scores, targets=None):
@@ -200,7 +208,7 @@ class InteractionHead(nn.Module):
             h_idx = torch.nonzero(labels[idx] == 49).squeeze(1)
             paired_idx = torch.cat([
                 v.flatten()[:, None] for v in torch.meshgrid(
-                    h_idx, torch.arange(len(labels[idx])))
+                    h_idx, torch.arange(len(labels[idx]), device=h_idx.device))
             ], 1)
 
             # Remove pairs of the same human instance
@@ -220,7 +228,8 @@ class InteractionHead(nn.Module):
                 boxes_h, boxes_o, prior_scores = self.append_ground_truth_box_pairs(
                     boxes_h, boxes_o, prior_scores, target_in_image)
 
-                interactions = torch.zeros(len(boxes_h), self.num_classes)
+                interactions = torch.zeros(len(boxes_h), self.num_classes,
+                        device=prior_scores.device)
 
                 fg_match = torch.nonzero(torch.min(
                     box_ops.box_iou(boxes_h, target_in_image['boxes_h']),
@@ -265,7 +274,8 @@ class InteractionHead(nn.Module):
         for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
 
             keep_cls = [s.nonzero().squeeze(1) for s in scores]
-            keep_box = torch.as_tensor([bool(len(pred_cls)) for pred_cls in keep_cls])
+            keep_box = torch.as_tensor([bool(len(pred_cls)) for pred_cls in keep_cls],
+                    device=keep_cls[0].device)
 
             results.append(dict(
                 boxes_h=b_h[keep_box].view(-1, 4),
@@ -414,7 +424,7 @@ class TrainableHead(nn.Module):
         
         self.interaction_head = InteractionHead(
             pooler,
-            (backbone.out_channels, output_size, output_size),
+            (self.backbone.out_channels, output_size, output_size),
             representation_size, num_classes,
             object_class_to_target_class=cls_corr
         )
@@ -423,7 +433,7 @@ class TrainableHead(nn.Module):
         self.original_image_sizes = [img.shape[-2:] for img in images]
         images, targets = self.transform(images, targets)
 
-        for det, o_im_s, im_s in zip(detections, self.original_image_sizes, images.images_sizes):
+        for det, o_im_s, im_s in zip(detections, self.original_image_sizes, images.image_sizes):
             boxes = det['boxes']
             boxes = transform.resize_boxes(boxes, o_im_s, im_s)
             det['boxes'] = boxes
@@ -440,11 +450,14 @@ class TrainableHead(nn.Module):
         if self.training and targets is None:
             raise ValueError("In training mode, targets should be passed")
 
-        images, detections, targets = self.preprocess(images, detections, targets)
+        images, detections, targets = self.preprocess(
+                images, detections, targets)
 
         features = self.backbone(images.tensors)
         # Remove the last max pooled features in fpn
-        features = [v for v in features.values()[:-1]]
+        features = [v for v in features.values()]
+        features = features[:-1]
+
         results = self.interaction_head(features, detections, targets)
 
         if self.training:
