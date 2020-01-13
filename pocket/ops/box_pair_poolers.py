@@ -98,17 +98,16 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
             then exactly sampling_ratio x sampling_ratio grid points are used. If
             <= 0, then an adaptive number of grid points are used (computed as
             ceil(roi_width / pooled_w), and likewise for height)
-        clone_limit(int): The maximum number of feature map clones set for memory
-            and speed concerns. Default: 512
+        mem_limit(int): Memory limit (GB) for feature map clones. Default: 8
     """
-    def __init__(self, output_size, spatial_scale, sampling_ratio, clone_limit=512):
+    def __init__(self, output_size, spatial_scale, sampling_ratio, mem_limit=512):
         super().__init__()
         self.output_size = (output_size, output_size) if type(output_size) is int \
             else output_size
         self.num_levels = len(spatial_scale)
         self.spatial_scale = spatial_scale
         self.sampling_ratio = sampling_ratio
-        self.clone_limit = clone_limit
+        self.mem_limit = mem_limit
 
         lvl_min = -torch.log2(torch.tensor(max(spatial_scale),
             dtype=torch.float32)).item()
@@ -125,8 +124,8 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
         reprstr += repr(self.spatial_scale)
         reprstr += ', sampling_ratio='
         reprstr += repr(self.sampling_ratio)
-        reprstr += ', clone_limit='
-        reprstr += repr(self.clone_limit)
+        reprstr += ', mem_limit='
+        reprstr += repr(self.mem_limit)
         reprstr += ')'
         return reprstr
 
@@ -256,7 +255,7 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
                 self.output_size,
                 spatial_scale=self.spatial_scale[0],
                 sampling_ratio=self.sampling_ratio,
-                clone_limit=self.clone_limit
+                mem_limit=self.mem_limit
             )
 
         levels = self.map_levels(boxes_h, boxes_o)
@@ -285,7 +284,7 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
                 masks_per_level, self.output_size,
                 spatial_scale=scale,
                 sampling_ratio=self.sampling_ratio,
-                clone_limit=self.clone_limit
+                mem_limit=self.mem_limit
             )
 
         return result
