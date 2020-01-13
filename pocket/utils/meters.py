@@ -523,9 +523,11 @@ class DetectionAPMeter:
                 isinstance(prediction, torch.Tensor) and \
                 isinstance(labels, torch.Tensor):
             prediction = prediction.long()
-            for out, pred, gt in zip(output, prediction, labels):
-                self._output_temp[pred.item()].append(out.item())
-                self._labels_temp[pred.item()].append(gt.item())
+            unique_cls = prediction.unique()
+            for cls_idx in unique_cls:
+                sample_idx = torch.nonzero(prediction == cls_idx).squeeze(1)
+                self._output_temp[cls_idx.item()] += output[sample_idx].tolist()
+                self._labels_temp[cls_idx.item()] += labels[sample_idx].tolist()
         else:
             raise TypeError("Arguments should be torch.Tensor")
 
