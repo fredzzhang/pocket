@@ -18,12 +18,12 @@ from pocket.ops import BoxPairMultiScaleRoIAlign
 def test_1():
     """Visualise the pooled box pair feautures"""
 
-    image = torch.ones(512, 512).numpy()
+    image = torch.ones(512, 512, 3).numpy()
 
     f = list([
-        torch.ones(1, 1, 64, 64),
-        torch.ones(1, 1, 32, 32),
-        torch.ones(1, 1, 16, 16),
+        torch.ones(1, 3, 64, 64),
+        torch.ones(1, 3, 32, 32),
+        torch.ones(1, 3, 16, 16),
     ])
 
     boxes_h = torch.tensor([
@@ -44,7 +44,7 @@ def test_1():
     )
 
     t = time.time()
-    out = m(f, [boxes_h], [boxes_o])
+    out = m(f, [boxes_h], [boxes_o]).permute([0, 2, 3, 1])
     print(time.time() - t)
 
     num_boxes = len(boxes_h)
@@ -53,11 +53,11 @@ def test_1():
         ax.imshow(image)
         box_h = boxes_h[idx].numpy()
         box_h[2:] -= box_h[:2]
-        rect = Rectangle(box_h[:2], box_h[2], box_h[3], fill=False, edgecolor='w')
+        rect = Rectangle(box_h[:2], box_h[2], box_h[3], fill=False, edgecolor='k')
         ax.add_patch(rect)
         box_o = boxes_o[idx].numpy()
         box_o[2:] -= box_o[:2]
-        rect = Rectangle(box_o[:2], box_o[2], box_o[3], fill=False, edgecolor='w')
+        rect = Rectangle(box_o[:2], box_o[2], box_o[3], fill=False, edgecolor='k')
         ax.add_patch(rect)
 
         plt.subplot(num_boxes, 2, idx * 2 + 2)
