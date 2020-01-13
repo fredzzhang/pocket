@@ -401,7 +401,7 @@ class TrainableHead(nn.Module):
             # Transformation parameters
             min_size=800, max_size=1333, image_mean=None, image_std=None,
             # Pooler parameters
-            output_size=7, spatial_scale=None, sampling_ratio=2,
+            output_size=7, spatial_scale=None, sampling_ratio=2, mem_limit=8,
             # MLP parameters
             representation_size=1024, num_classes=600):
         super().__init__()
@@ -419,7 +419,8 @@ class TrainableHead(nn.Module):
         pooler = BoxPairMultiScaleRoIAlign(
             output_size=output_size,
             spatial_scale=spatial_scale,
-            sampling_ratio=sampling_ratio
+            sampling_ratio=sampling_ratio,
+            mem_limit=mem_limit
         )
         
         self.interaction_head = InteractionHead(
