@@ -98,16 +98,17 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
             then exactly sampling_ratio x sampling_ratio grid points are used. If
             <= 0, then an adaptive number of grid points are used (computed as
             ceil(roi_width / pooled_w), and likewise for height)
-        mask_limit(int): Maximum number of masks produced at once for memory concerns
+        clone_limit(int): The maximum number of feature map clones set for memory
+            and speed concerns. Default: 512
     """
-    def __init__(self, output_size, spatial_scale, sampling_ratio, mask_limit=512):
+    def __init__(self, output_size, spatial_scale, sampling_ratio, clone_limit=512):
         super().__init__()
         self.output_size = (output_size, output_size) if type(output_size) is int \
             else output_size
         self.num_levels = len(spatial_scale)
         self.spatial_scale = spatial_scale
         self.sampling_ratio = sampling_ratio
-        self.mask_limit = mask_limit
+        self.clone_limit = clone_limit
 
         lvl_min = -torch.log2(torch.tensor(max(spatial_scale),
             dtype=torch.float32)).item()
@@ -124,8 +125,8 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
         reprstr += repr(self.spatial_scale)
         reprstr += ', sampling_ratio='
         reprstr += repr(self.sampling_ratio)
-        reprstr += ', mask_limit='
-        reprstr += repr(self.mask_limit)
+        reprstr += ', clone_limit='
+        reprstr += repr(self.clone_limit)
         reprstr += ')'
         return reprstr
 
@@ -188,7 +189,12 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
         Returns:
             masks(Tensor[K, C, H, W])
         """
-        masks = torch.zeros_like(features)[boxes_h[:, 0].long()]
+        dtype, device, shape = features.dtype, features.device, list(features.shape)
+        # Reduce the number of channels to one since masks are identical across
+        # channels. The single channel will be broacast automatically
+        shape[1] = 1
+        masks = torch.zeros(shape,
+            dtype=dtype, device=device)[boxes_h[:, 0].long()]
         scale = self.spatial_scale[level]
 
         boxes_h[:, 1:] *= scale
@@ -236,62 +242,51 @@ class BoxPairMultiScaleRoIAlign(torch.nn.Module):
         boxes_h = convert_boxes_to_roi_format(boxes_h)
         boxes_o = convert_boxes_to_roi_format(boxes_o)
 
-        num_boxes = len(boxes_h)
-        num_iter = num_boxes // self.mask_limit + bool(num_boxes % self.mask_limit)
-        output = torch.zeros(num_boxes, features[0].shape[1], *self.output_size,
-            dtype=features[0].dtype,
-            device=features[0].device,
-        )
-        # Compute pooled features iteratively based on maximum number of masks allowed
-        for idx in range(num_iter):
-            start_idx = idx * self.mask_limit
-            end_idx = min(start_idx + self.mask_limit, num_boxes)
+        box_pair_union = self.compute_box_pair_union(boxes_h, boxes_o)
 
-            box_pair_union = self.compute_box_pair_union(
-                boxes_h[start_idx: end_idx],
-                boxes_o[start_idx: end_idx]
+        if self.num_levels == 1:
+            box_pair_masks = self.construct_masks_for_box_pairs(
+                features[0], 0,
+                boxes_h, boxes_o
+            )
+            return masked_roi_align(
+                features[0],
+                box_pair_union,
+                box_pair_masks,
+                self.output_size,
+                spatial_scale=self.spatial_scale[0],
+                sampling_ratio=self.sampling_ratio,
+                clone_limit=self.clone_limit
             )
 
-            if self.num_levels == 1:
-                box_pair_masks = self.construct_masks_for_box_pairs(
-                    features[0], 0,
-                    boxes_h[start_idx: end_idx],
-                    boxes_o[start_idx: end_idx]
-                )
-                output[start_idx: end_idx] = \
-                    masked_roi_align(
-                        features[0],
-                        box_pair_union,
-                        box_pair_masks,
-                        self.output_size,
-                        spatial_scale=self.spatial_scale[0],
-                        sampling_ratio=self.sampling_ratio,
-                        clone_limit=self.mask_limit
-                    )
-            else:
-                levels = self.map_levels(
-                    boxes_h[start_idx: end_idx],
-                    boxes_o[start_idx: end_idx]
-                )
-                for level, (per_level_feature, scale) in enumerate(zip(features, self.spatial_scale)):
-                    idx_in_level = torch.nonzero(levels == level).squeeze(1)
-                    rois_per_level = box_pair_union[idx_in_level]
-                    masks_per_level = self.construct_masks_for_box_pairs(
-                        per_level_feature, level,
-                        boxes_h[start_idx: end_idx][idx_in_level],
-                        boxes_o[start_idx: end_idx][idx_in_level]
-                    )
+        levels = self.map_levels(boxes_h, boxes_o)
 
-                    output[start_idx: end_idx][idx_in_level] = \
-                        masked_roi_align(
-                            per_level_feature,
-                            rois_per_level,
-                            masks_per_level,
-                            self.output_size,
-                            spatial_scale=scale,
-                            sampling_ratio=self.sampling_ratio,
-                            clone_limit=self.mask_limit
-                        )
+        num_pairs = len(box_pair_union)
+        num_channels = features[0].shape[1]
 
-        return output
+        dtype, device = features[0].dtype, features[0].device
+        result = torch.zeros(
+            num_pairs, num_channels, *self.output_size,
+            dtype=dtype, device=device
+        )
+
+        for level, (per_level_feature, scale) in enumerate(
+                zip(features, self.spatial_scale)):
+            idx_in_level = torch.nonzero(levels == level).squeeze(1)
+            rois_per_level = box_pair_union[idx_in_level]
+            masks_per_level = self.construct_masks_for_box_pairs(
+                per_level_feature, level,
+                boxes_h[idx_in_level],
+                boxes_o[idx_in_level]
+            )
+
+            result[idx_in_level] = masked_roi_align(
+                per_level_feature, rois_per_level,
+                masks_per_level, self.output_size,
+                spatial_scale=scale,
+                sampling_ratio=self.sampling_ratio,
+                clone_limit=self.clone_limit
+            )
+
+        return result
 
