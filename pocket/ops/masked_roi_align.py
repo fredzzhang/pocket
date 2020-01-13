@@ -51,7 +51,7 @@ from torchvision.ops._utils import convert_boxes_to_roi_format
 from torchvision.ops.roi_align import _RoIAlignFunction
 
 def masked_roi_align(features, boxes, masks, output_size,
-        spatial_scale=1.0, sampling_ratio=-1, clone_limit=512):
+        spatial_scale=1.0, sampling_ratio=-1, mem_limit=8):
     """
     Perform masked RoI align given individual bounding boxes and corresponding masks
 
@@ -73,8 +73,7 @@ def masked_roi_align(features, boxes, masks, output_size,
             then exactly sampling_ratio x sampling_ratio grid points are used. If
             <= 0, then an adaptive number of grid points are used (computed as
             ceil(roi_width / pooled_w), and likewise for height). Default: -1
-        clone_limit(int): The maximum number of feature map clones set for memory
-            and speed concerns. Default: 512
+        mem_limit(int): Memory limit (GB) for feature map clones. Default: 8
     """
     if type(output_size) is int:
         output_size = (output_size, output_size)
@@ -82,6 +81,10 @@ def masked_roi_align(features, boxes, masks, output_size,
         boxes = convert_boxes_to_roi_format(boxes)
     if not isinstance(masks, torch.Tensor):
         masks = torch.cat(masks, 0)
+
+    GB = 1024 ** 3
+    clone_limit = mem_limit * GB \
+        / (torch.as_tensor(features.shape[1:]).prod() * 4 * 2)
 
     num_boxes = len(boxes)
     num_iter = num_boxes // clone_limit + bool(num_boxes % clone_limit)
