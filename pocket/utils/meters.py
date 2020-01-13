@@ -113,6 +113,10 @@ class AveragePrecisionMeter:
     Meter to compute average precision
 
     Arguments:
+        num_gt(iterable): Number of ground truth instances for each class. When left
+            as None, all positives are assumed to have been included in the collected
+            results. As a result, full recall is guaranteed when the lowest scoring
+            example is accounted for.
         algorithm(str, optional): AP evaluation algorithm
             '11P': 11-point interpolation algorithm prior to voc2010
             'INT': Interpolation algorithm with all points used in voc2010
@@ -141,10 +145,13 @@ class AveragePrecisionMeter:
         >>> meter.reset()
 
     """
-    def __init__(self, algorithm="AUC", chunksize=-1, output=None, labels=None):
+    def __init__(self, num_gt=None, algorithm="AUC", chunksize=-1, 
+            output=None, labels=None):
+        self.num_gt = torch.as_tensor(num_gt) \
+            if num_gt is not None else None
         self.algorithm = algorithm
-
         self._chunksize = chunksize
+        
         is_none = (output is None, labels is None)
         if is_none == (True, True):
             self._output = torch.Tensor([])
@@ -207,13 +214,14 @@ class AveragePrecisionMeter:
         return ap
 
     @classmethod            
-    def compute_ap(cls, output, labels, algorithm='AUC', chunksize=-1):
+    def compute_ap(cls, output, labels, num_gt=None, algorithm='AUC', chunksize=-1):
         """
         Compute AP precisely as the area under the precision-recall curve
 
         Arguments:
             output(FloatTensor[N, K])
             labels(FloatTensor[N, K])
+            num_gt(Tensor[N]): Number of ground truth instances for each class
             algorithm(str): AP evaluation algorithm
             chunksize(int, optional): The approximate size the given iterable will be split
                 into for each worker. Use -1 to make the argument adaptive to iterable size
@@ -221,7 +229,8 @@ class AveragePrecisionMeter:
         Returns:
             ap(FloatTensor[K])
         """
-        prec, rec = cls.compute_precision_and_recall(output, labels)
+        prec, rec = cls.compute_precision_and_recall(output, labels, 
+            num_gt=num_gt)
         ap = torch.zeros(output.shape[1])
         # Use the logic from pool._map_async to compute chunksize
         # https://github.com/python/cpython/blob/master/Lib/multiprocessing/pool.py
@@ -254,11 +263,12 @@ class AveragePrecisionMeter:
         return ap
 
     @staticmethod
-    def compute_precision_and_recall(output, labels, eps=1e-8):
+    def compute_precision_and_recall(output, labels, num_gt=None, eps=1e-8):
         """
         Arguments:
             output(FloatTensor[N, K])
             labels(FloatTensor[N, K])
+            num_gt(Tensor[N])
             eps(float): A small constant to avoid division by zero
         Returns:
             prec(FloatTensor[N, K])
@@ -276,7 +286,8 @@ class AveragePrecisionMeter:
         prec = tp / (tp + fp)
         # NOTE: The insignificant constant could potentially result in 100%
         # recall being unreachable. Be cautious about its magnitude.
-        rec = tp / (labels.sum(0) + eps)
+        rec = tp / (labels.sum(0) + eps) if num_gt is None else \
+            tp / (num_gt + eps)
         return prec, rec
 
     def append(self, output, labels):
@@ -326,8 +337,14 @@ class AveragePrecisionMeter:
         ], 0)
         self.reset(keep_old=True)
 
+        # Sanity check
+        if self.num_gt is not None:
+            faulty_cls = (self._labels.sum(0) > self.num_gt).nonzero().squeeze(1)
+            if len(faulty_cls):
+                raise AssertionError("Class {}: ".format(faulty_cls.tolist())+
+                    "Number of true positives larger than that of ground truth")
         if len(self._output) and len(self._labels):
-            return self.compute_ap(output=self._output, labels=self._labels,
+            return self.compute_ap(self._output, self._labels, num_gt=self.num_gt,
                 algorithm=self.algorithm, chunksize=self._chunksize)
         else:
             print("WARNING: Collected results are empty. "
@@ -340,7 +357,10 @@ class DetectionAPMeter:
     Different classes could potentially have different number of samples.
 
     Arguments:
-        num_cls(int): Number of target classes
+        num_gt(iterable): Number of ground truth instances for each class. When left
+            as None, all positives are assumed to have been included in the collected
+            results. As a result, full recall is guaranteed when the lowest scoring
+            example is accounted for.
         algorithm(str, optional): A choice between '11P' and 'AUC'
             '11P': 11-point interpolation algorithm prior to voc2010
             'INT': Interpolation algorithm with all points used in voc2010
@@ -372,11 +392,18 @@ class DetectionAPMeter:
         >>> meter.reset()
 
     """
-    def __init__(self, num_cls,
-            algorithm='AUC', chunksize=-1, output=None, labels=None):
-        self.algorithm = algorithm
+    def __init__(self, num_cls, num_gt=None, algorithm='AUC', chunksize=-1, 
+            output=None, labels=None):
+        if num_gt is not None and len(num_gt) != num_cls:
+            raise AssertionError("Provided ground truth instances"
+                "do not have the same number of classes as specified")
 
+        self.num_cls = num_cls
+        self.num_gt = num_gt if num_gt is not None else \
+            [None for _ in range(num_cls)]
+        self.algorithm = algorithm
         self._chunksize = chunksize
+
         is_none = (output is None, labels is None)
         if is_none == (True, True):
             self._output = [torch.Tensor([]) for _ in range(num_cls)]
@@ -397,13 +424,14 @@ class DetectionAPMeter:
         self._labels_temp = [[] for _ in range(num_cls)]
     
     @classmethod
-    def compute_ap(cls, output, labels, algorithm='AUC', chunksize=-1):
+    def compute_ap(cls, output, labels, num_gt, algorithm='AUC', chunksize=-1):
         """
         Compute AP precisely as the area under the precision-recall curve
 
         Arguments:
             output(list[FloatTensor])
             labels(list[FloatTensor])
+            num_gt(iterable): Number of ground truth instances for each class
             algorithm(str): AP evaluation algorithm
             chunksize(int, optional): The approximate size the given iterable will be split
                 into for each worker. Use -1 to make the argument adaptive to iterable size
@@ -435,8 +463,8 @@ class DetectionAPMeter:
         with multiprocessing.Pool() as pool:
             for idx, result in enumerate(pool.imap(
                 func=cls.compute_ap_for_each,
-                iterable=[(idx, out, gt, algorithm_handle) 
-                    for idx, (out, gt) in enumerate(zip(output, labels))],
+                iterable=[(idx, ngt, out, gt, algorithm_handle) 
+                    for idx, (ngt, out, gt) in enumerate(zip(num_gt, output, labels))],
                 chunksize=chunksize
             )):
                 ap[idx] = result
@@ -445,20 +473,25 @@ class DetectionAPMeter:
 
     @classmethod
     def compute_ap_for_each(cls, tuple_):
-        idx, output, labels, algorithm = tuple_
+        idx, num_gt, output, labels, algorithm = tuple_
+        # Sanity check
+        if num_gt is not None and labels.sum() > num_gt:
+            raise AssertionError("Class {}: ".format(idx)+
+                "Number of true positives larger than that of ground truth")
         if len(output) and len(labels):
-            return algorithm(cls.compute_precision_and_recall(output, labels))
+            return algorithm(cls.compute_precision_and_recall(output, labels, num_gt))
         else:
             print("WARNING: Collected results are empty. "
                 "Return zero AP for class {}.".format(idx))
             return 0
 
     @staticmethod
-    def compute_precision_and_recall(output, labels, eps=1e-8):
+    def compute_precision_and_recall(output, labels, num_gt=None, eps=1e-8):
         """
         Arguments:
             output(FloatTensor[N])
             labels(FloatTensor[N]): Binary labels for each sample
+            num_gt(int or float): Number of ground truth instances
             eps(float): A small constant to avoid division by zero
         Returns:
             prec(FloatTensor[N])
@@ -472,7 +505,8 @@ class DetectionAPMeter:
         fp = fp.cumsum(0)
 
         prec = tp / (tp + fp)
-        rec = tp / (labels.sum() + eps)
+        rec = tp / (labels.sum() + eps) if num_gt is None else \
+            tp / (num_gt + eps)
 
         return prec, rec
 
@@ -525,5 +559,5 @@ class DetectionAPMeter:
         ]) for tar1, tar2 in zip(self._labels, self._labels_temp)]
         self.reset(keep_old=True)
 
-        return self.compute_ap(output=self._output, labels=self._labels,
+        return self.compute_ap(self._output, self._labels, self.num_gt,
             algorithm=self.algorithm, chunksize=self._chunksize)
