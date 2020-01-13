@@ -23,16 +23,15 @@ def test(args):
     use_gpu = torch.cuda.is_available() and args.gpu
 
     dataset = HICODet(
-        root=os.path.join(args.data_root, "hico_20160224_det/images/train2015"),
-        annoFile=os.path.join(args.data_root, "instances_train2015.json"),
+        root=os.path.join(args.data_root,
+            "hico_20160224_det/images/{}".format(args.partition)),
+        annoFile=os.path.join(args.data_root,
+            "instances_{}.json".format(args.partition)),
         transform=torchvision.transforms.ToTensor(),
         target_transform=pocket.ops.ToTensor(input_format='dict')
     )
 
-    with open(os.path.join(args.data_root, "hico80to600.json"), 'r') as f:
-        hico_obj_to_hoi = json.load(f) 
-
-    interaction_head = TrainableHead(hico_obj_to_hoi)
+    interaction_head = TrainableHead(dataset.object_to_interaction)
     if use_gpu:
         interaction_head = interaction_head.cuda()
 
@@ -41,7 +40,8 @@ def test(args):
 
     image, target = dataset[args.image_idx]
     detection_path = os.path.join(args.data_root, 
-        "fasterrcnn_resnet50_fpn_detections/train2015/{}".format(
+        "fasterrcnn_resnet50_fpn_detections/{}/{}".format(
+            args.partition,
             dataset.filename(args.image_idx).replace('jpg', 'json'))
     )
     with open(detection_path, 'r') as f:
@@ -65,7 +65,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Test interaction head")
     parser.add_argument('--data-root',
-                        default="/MyData/Github/InteractRCNN/data/",
+                        required=True,
+                        type=str)
+    parser.add_argument('--partition',
+                        default='train2015',
                         type=str)
     parser.add_argument('--image-idx',
                         default=0,
