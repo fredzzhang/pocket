@@ -356,7 +356,9 @@ class DetectionAPMeter:
     A variant of AP meter, where network outputs are assumed to be class-specific.
     Different classes could potentially have different number of samples.
 
-    Arguments:
+    Required Arguments:
+        num_cls(int): Number of target classes
+    Optional Arguemnts:
         num_gt(iterable): Number of ground truth instances for each class. When left
             as None, all positives are assumed to have been included in the collected
             results. As a result, full recall is guaranteed when the lowest scoring
