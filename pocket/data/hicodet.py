@@ -28,9 +28,17 @@ class HICODet(ImageDataset):
         super(HICODet, self).__init__(root, transform, target_transform, transforms)
         with open(annoFile, 'r') as f:
             anno = json.load(f)
-        self._idx, self._anno, self._filenames, self._class_corr, self._empty_idx = \
+
+        self.num_object_cls = 80
+        self.num_interation_cls = 600
+        self.num_action_cls = 117
+
+        # Load annotations
+        self._idx, self._obj_to_int, self._num_anno, \
+            self._anno, self._filenames, self._class_corr, self._empty_idx = \
             self.load_annotation_and_metadata(anno)
         self._annoFile = annoFile
+
 
     def __len__(self):
         """Return the number of images"""
@@ -76,15 +84,63 @@ class HICODet(ImageDataset):
             [hoi_idx, obj_idx, verb_idx],
             ...
         ]
+
+        Returns:
+            list[list[3]]
         """
         return self._class_corr.copy()
+
+    @property
+    def object_to_interaction(self):
+        """
+        The interaction classes that involve each object type
+        
+        Returns:
+            list[list]
+        """
+        return self._obj_to_int.copy()
+
+    @property
+    def anno_interaction(self):
+        """
+        Number of annotated box pairs for each interaction class
+
+        Returns:
+            list[600]
+        """
+        return self._num_anno.copy()
+
+    @property
+    def anno_object(self):
+        """
+        Number of annotated box pairs for each object class
+
+        Returns:
+            list[80]
+        """
+        num_anno = [0 for _ in range(self.num_object_cls)]
+        for corr in self._class_corr:
+            num_anno[corr[1]] += self._num_anno[corr[0]]
+        return num_anno
+
+    @property
+    def anno_action(self):
+        """
+        Number of annotated box pairs for each action class
+
+        Returns:
+            list[117]
+        """
+        num_anno = [0 for _ in range(self.num_action_cls)]
+        for corr in self._class_corr:
+            num_anno[corr[2]] += self._num_anno[corr[0]]
+        return num_anno
 
     def filename(self, idx):
         """Return the image file name"""
         return self._filenames[self._idx[idx]]
 
-    @staticmethod
-    def load_annotation_and_metadata(f):
+    def load_annotation_and_metadata(self, f):
         """
         Arguments:
             f(dict): Dictionary loaded from {annoFile}.json
@@ -99,6 +155,16 @@ class HICODet(ImageDataset):
         idx = list(range(len(f['filenames'])))
         for empty_idx in f['empty']:
             idx.remove(empty_idx)
+        
+        obj_to_int = [[] for _ in range(self.num_object_cls)]
+        for corr in f['class']:
+            obj_to_int[corr[1]].append(corr[0])
 
-        return idx, f['annotation'], f['filenames'], f['class'], f['empty']
+        num_anno = [0 for _ in range(self.num_interation_cls)]
+        for anno in f['annotation']:
+            for hoi in anno['hoi']:
+                num_anno[hoi] += 1
+
+        return idx, obj_to_int, num_anno, \
+            f['annotation'], f['filenames'], f['class'], f['empty']
         
