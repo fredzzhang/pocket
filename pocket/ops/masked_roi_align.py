@@ -83,8 +83,10 @@ def masked_roi_align(features, boxes, masks, output_size,
         masks = torch.cat(masks, 0)
 
     GB = 1024 ** 3
-    clone_limit = mem_limit * GB \
-        / (torch.as_tensor(features.shape[1:]).prod() * 4 * 2)
+    # Feature maps and masks (of the same size) are both considered for memory limit
+    # The maximum number of feature maps allowed should be divided by 2
+    clone_limit = (mem_limit * GB / 2 /
+        (torch.as_tensor(features.shape[1:]).prod() * 4)).item()
 
     num_boxes = len(boxes)
     num_iter = num_boxes // clone_limit + bool(num_boxes % clone_limit)
