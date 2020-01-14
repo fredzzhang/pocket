@@ -10,11 +10,11 @@ Australian Centre for Robotic Vision
 import torch
 import matplotlib.pyplot as plt
 
-from pocket.ops import BoxPairMultiScaleRoIAlign
+from pocket.ops import MaskedBoxPairPool
 
 def test_2():
 
-    m = BoxPairMultiScaleRoIAlign(
+    m = MaskedBoxPairPool(
         output_size=4, 
         spatial_scale=[1/8, 1/16, 1/32], 
         sampling_ratio=2
@@ -44,7 +44,7 @@ def test_2():
 
 def test_1():
 
-    m = BoxPairMultiScaleRoIAlign(7, (1.0,), 2)
+    m = MaskedBoxPairPool(7, (1.0,), 2)
 
     f = torch.rand(2, 1, 12, 12)
 
