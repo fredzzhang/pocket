@@ -321,6 +321,11 @@ class InteractionHead(nn.Module):
         boxes_h, boxes_o, box_pair_labels, prior_scores = self.pair_up_boxes_and_assign_to_targets(
             box_coords, box_labels, box_scores, targets)
 
+        # No box pairs available
+        # This happens when there are no detected persons
+        if sum([len(b) for b in boxes_h]) == 0:
+            return None
+
         box_pair_features = self.box_pair_pooler(features, boxes_h, boxes_o)
         box_pair_features = box_pair_features.flatten(start_dim=1)
         box_pair_features = self.box_pair_head(box_pair_features)
@@ -377,6 +382,8 @@ class InteractRCNNTransform(transform.GeneralizedRCNNTransform):
         return image, target
 
     def postprocess(self, results, image_shapes, original_image_sizes):
+        if self.training:
+            return results
 
         for pred, im_s, o_im_s in zip(results, image_shapes, original_image_sizes):
             boxes_h, boxes_o = pred['boxes_h'], pred['boxes_o']
@@ -401,7 +408,7 @@ class TrainableHead(nn.Module):
             # Transformation parameters
             min_size=800, max_size=1333, image_mean=None, image_std=None,
             # Pooler parameters
-            output_size=7, spatial_scale=None, sampling_ratio=2, mem_limit=8,
+            output_size=7, spatial_scale=None, sampling_ratio=2, mem_limit=6,
             # MLP parameters
             representation_size=1024, num_classes=600):
         super().__init__()
@@ -461,7 +468,7 @@ class TrainableHead(nn.Module):
 
         results = self.interaction_head(features, detections, targets)
 
-        if self.training:
+        if results is None:
             return results
 
         return self.transform.postprocess(results, images.image_sizes, self.original_image_sizes)
