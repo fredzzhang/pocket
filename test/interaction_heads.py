@@ -31,7 +31,9 @@ def test(args):
         target_transform=pocket.ops.ToTensor(input_format='dict')
     )
 
-    interaction_head = TrainableHead(dataset.object_to_interaction)
+    interaction_head = TrainableHead(
+            dataset.object_to_interaction,
+            masked_pool=args.masked_pool)
     if use_gpu:
         interaction_head = interaction_head.cuda()
 
@@ -77,6 +79,9 @@ if __name__ == '__main__':
                         default='train',
                         type=str)
     parser.add_argument('--gpu',
+                        action='store_true',
+                        default=False)
+    parser.add_argument('--masked-pool',
                         action='store_true',
                         default=False)
     args = parser.parse_args()
