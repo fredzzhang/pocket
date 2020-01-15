@@ -14,7 +14,7 @@ from torchvision.ops._utils import _cat
 from torchvision.models.detection import transform
 
 from .faster_rcnn import fasterrcnn_resnet_fpn
-from ..ops import MaskedBoxPairPool
+from ..ops import SimpleBoxPairPool, MaskedBoxPairPool
 
 class InteractionHead(nn.Module):
     """
@@ -405,9 +405,12 @@ class TrainableHead(nn.Module):
             # Backbone parameters
             backbone='resnet50', pretrained=True,
             # Transformation parameters
-            min_size=800, max_size=1333, image_mean=None, image_std=None,
+            min_size=800, max_size=1333, 
+            image_mean=None, image_std=None,
             # Pooler parameters
-            output_size=7, spatial_scale=None, sampling_ratio=2, mem_limit=6,
+            masked_pool=True,
+            output_size=7, spatial_scale=None, 
+            sampling_ratio=2, mem_limit=6,
             # MLP parameters
             representation_size=1024, num_classes=600):
         super().__init__()
@@ -422,12 +425,19 @@ class TrainableHead(nn.Module):
 
         if spatial_scale is None:
             spatial_scale = [1/4, 1/8, 1/16, 1/32]
-        pooler = MaskedBoxPairPool(
-            output_size=output_size,
-            spatial_scale=spatial_scale,
-            sampling_ratio=sampling_ratio,
-            mem_limit=mem_limit
-        )
+        if masked_pool:
+            pooler = MaskedBoxPairPool(
+                output_size=output_size,
+                spatial_scale=spatial_scale,
+                sampling_ratio=sampling_ratio,
+                mem_limit=mem_limit
+            )
+        else:
+            pooler = SimpleBoxPairPool(
+                output_size=output_size,
+                spatial_scale=spatial_scale,
+                sampling_ratio=sampling_ratio
+            )
         
         self.interaction_head = InteractionHead(
             pooler,
