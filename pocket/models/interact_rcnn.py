@@ -14,7 +14,7 @@ from torchvision.ops._utils import _cat
 from torchvision.models.detection import transform
 
 from .faster_rcnn import fasterrcnn_resnet_fpn
-from ..ops import BoxPairMultiScaleRoIAlign
+from ..ops import MaskedBoxPairPool
 
 class InteractionHead(nn.Module):
     """
@@ -23,8 +23,7 @@ class InteractionHead(nn.Module):
     Arguments:
 
     [REQUIRES ARGS]
-        box_pair_pooler(BoxPairMultiScaleRoIAlign): The module that applies a mask on the union of 
-            a box pair and proceed to extract pooled features based on torchvision.ops.MultiScaleRoIAlign
+        box_pair_pooler(nn.Module): Module that pools a feature vector for a given box pair
         pooler_output_shape(tuple): (C, H, W)
         representation_size(int): Size of the intermediate representation
         num_classes(int): Number of output classes
@@ -423,7 +422,7 @@ class TrainableHead(nn.Module):
 
         if spatial_scale is None:
             spatial_scale = [1/4, 1/8, 1/16, 1/32]
-        pooler = BoxPairMultiScaleRoIAlign(
+        pooler = MaskedBoxPairPool(
             output_size=output_size,
             spatial_scale=spatial_scale,
             sampling_ratio=sampling_ratio,
