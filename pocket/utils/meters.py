@@ -255,7 +255,7 @@ class AveragePrecisionMeter:
         with multiprocessing.Pool() as pool:
             for idx, result in enumerate(pool.imap(
                 func=algorithm_handle,
-                iterable=[(prec[:, k], rec[:, k]) for k in range(output.shape[1])],
+                iterable=zip(prec.transpose(0, 1), rec.transpose(0, 1)),
                 chunksize=chunksize
             )):
                 ap[idx] = result
@@ -442,13 +442,6 @@ class DetectionAPMeter:
             ap(FloatTensor[K])
         """
         ap = torch.zeros(len(output))
-        # Same logic in AveragePrecisionMeter.compute_ap
-        if chunksize == -1:
-            chunksize, extra = divmod(
-                    len(output),
-                    multiprocessing.cpu_count() * 4)
-            if extra:
-                chunksize += 1
 
         if algorithm == 'INT':
             algorithm_handle = \
@@ -463,11 +456,10 @@ class DetectionAPMeter:
             raise ValueError("Unknown algorithm option {}.".format(algorithm))
 
         with multiprocessing.Pool() as pool:
-            for idx, result in enumerate(pool.imap(
+            for idx, result in enumerate(pool.map(
                 func=cls.compute_ap_for_each,
                 iterable=[(idx, ngt, out, gt, algorithm_handle) 
-                    for idx, (ngt, out, gt) in enumerate(zip(num_gt, output, labels))],
-                chunksize=chunksize
+                    for idx, (ngt, out, gt) in enumerate(zip(num_gt, output, labels))]
             )):
                 ap[idx] = result
 
