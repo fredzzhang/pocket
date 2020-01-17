@@ -51,9 +51,15 @@ from torchvision.ops._utils import convert_boxes_to_roi_format
 from torchvision.ops.roi_align import _RoIAlignFunction
 
 def masked_roi_align(features, boxes, masks, output_size,
-        spatial_scale=1.0, sampling_ratio=-1, mem_limit=8):
+        spatial_scale=1.0, sampling_ratio=-1, 
+        mem_limit=10, reserve=128):
     """
     Perform masked RoI align given individual bounding boxes and corresponding masks
+
+    The function makes a copy of the corresponding feature map for each box and subsequently
+    applies a mask. To avoid memory overflow, the maximum number of copies made is inferred
+    from given arguments {mem_limit} and {reserve}. Inappropiate choice of arguments could 
+    lead to memory overflow.
 
     Arguments:
         features(Tensor[N, C, H, W]): Input feature tensor
@@ -73,7 +79,10 @@ def masked_roi_align(features, boxes, masks, output_size,
             then exactly sampling_ratio x sampling_ratio grid points are used. If
             <= 0, then an adaptive number of grid points are used (computed as
             ceil(roi_width / pooled_w), and likewise for height). Default: -1
-        mem_limit(int): Memory limit (GB) for feature map clones. Default: 8
+        mem_limit(int): Memory limit (GB) allowed in this module. The maximum number of feature
+            map clones made will be inferred from this. Default: 10
+        reserve(int): Memory (MB) overhead preserved for miscellaneous variables. The memory
+            limit will be subtracted by this value. Default: 128
     """
     if type(output_size) is int:
         output_size = (output_size, output_size)
@@ -82,18 +91,22 @@ def masked_roi_align(features, boxes, masks, output_size,
     if not isinstance(masks, torch.Tensor):
         masks = torch.cat(masks, 0)
 
-    GB = 1024 ** 3
-    # Feature maps and masks (of the same size) are both considered for memory limit
-    # The maximum number of feature maps allowed should be divided by 2
-    clone_limit = (mem_limit * GB / 2 /
-        (torch.as_tensor(features.shape[1:]).prod() * 4)).item()
-
     num_boxes = len(boxes)
-    num_iter = num_boxes // clone_limit + bool(num_boxes % clone_limit)
     output = torch.zeros(num_boxes, features.shape[1], *output_size,
         dtype=features.dtype,
         device=features.device,
     )
+
+    MB = 1024 ** 2; GB = MB * 1024
+    # The available memory set for 
+    clone_limit = ((
+        mem_limit * GB - reserve * MB
+        - torch.as_tensor(output.shape).prod() * 4
+        - torch.as_tensor(masks.shape).prod() * 4
+        ) / torch.as_tensor(features.shape[1:]).prod() * 4
+    ).item()
+        
+    num_iter = num_boxes // clone_limit + bool(num_boxes % clone_limit)
     # Compute pooled features iteratively based on maximum number of feature map
     # clones allowed
     for idx in range(num_iter):
