@@ -34,7 +34,7 @@ class MultiLayerPerceptron(nn.Module):
             (2): BatchNorm1d(20, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
             (3): Linear(in_features=20, out_features=10, bias=True)
         )
-        >>> from pocket.models import GroupNormConstructor
+        >>> from pocket.ops import GroupNormConstructor
         >>> norm = GroupNormConstructor(32)
         >>> net = MLP([1024, 1024, 100], bias=[True, False], norm_layer=norm)
         >>> net.layers
