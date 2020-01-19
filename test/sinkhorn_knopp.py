@@ -61,7 +61,6 @@ class TestSinkhornKnopp(unittest.TestCase):
 
         x = torch.randint(0, 10, (30, 30))
         x1 = m(x.numpy())
-        self.assertTrue
         self.assertTrue(torch.all((x1.sum(0) - 1).abs() < m.tolerance))
         self.assertTrue(torch.all((x1.sum(1) - 1).abs() < m.tolerance))
         x2 = m(x.tolist())
