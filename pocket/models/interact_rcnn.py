@@ -154,7 +154,11 @@ class InteractionHead(nn.Module):
         """
         num_gt = len(targets['boxes_h'])
         paired_idx = torch.cat([
-            torch.arange(2 * num_gt).view(2, -1).transpose(0, 1),
+            torch.arange(
+                2 * num_gt,
+                dtype=paired_idx.dtype,
+                device=paired_idx.device
+            ).view(2, -1).transpose(0, 1),
             paired_idx
         ], 0)
         boxes = torch.cat([
