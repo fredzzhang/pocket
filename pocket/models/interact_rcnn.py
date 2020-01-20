@@ -112,11 +112,20 @@ class InteractionHead(nn.Module):
         mapped_scores = torch.zeros(len(paired_idx), self.num_classes,
             dtype=scores.dtype, device=scores.device)
 
-        for idx, (h_idx, o_idx) in enumerate(paired_idx):
-            mapped_scores[
-                idx,
-                self.object_class_to_target_class[labels[o_idx]]
-            ] = scores[h_idx] * scores[o_idx]
+        h_idx, o_idx = paired_idx.unbind(1)
+        # Product of object detection scores for each pair
+        prod = scores[h_idx] * scores[o_idx]
+
+        obj_cls = labels[o_idx]
+        # Find mapped HOI indices for each pair
+        hoi_idx = [self.object_class_to_target_class[obj] 
+            for obj in obj_cls]
+        # Duplicate box pair indices for each HOI class
+        pair_idx = [i for i, hois in enumerate(hoi_idx) for _ in len(hois)]
+        # Flatten mapped HOI indices
+        flat_hoi_idx = [hoi for hois in hoi_idx for hoi in hois]
+        
+        mapped_scores[pair_idx, flat_hoi_idx] = prod[pair_idx]
         
         return mapped_scores
 
