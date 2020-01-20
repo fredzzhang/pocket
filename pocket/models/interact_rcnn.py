@@ -412,7 +412,8 @@ class TrainableHead(nn.Module):
             output_size=7, spatial_scale=None, 
             sampling_ratio=2, mem_limit=6,
             # MLP parameters
-            representation_size=1024, num_classes=600):
+            representation_size=1024, num_classes=600,
+            **kwargs):
         super().__init__()
 
         self.backbone = fasterrcnn_resnet_fpn(backbone, pretrained=pretrained).backbone
@@ -443,7 +444,7 @@ class TrainableHead(nn.Module):
             pooler,
             (self.backbone.out_channels, output_size, output_size),
             representation_size, num_classes,
-            object_class_to_target_class=cls_corr
+            object_class_to_target_class=cls_corr, **kwargs
         )
 
     def preprocess(self, images, detections, targets=None):
