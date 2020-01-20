@@ -40,12 +40,16 @@ class InteractionHead(nn.Module):
         box_nms_thresh(float): NMS threshold to filter object detections during evaluation
     """
     def __init__(self,
+            # Architectural parameters
             box_pair_pooler,
             pooler_output_shape, 
             representation_size, 
             num_classes,
-            object_class_to_target_class,
+            # Parameters for box pair construction
+            object_class_to_target_class, human_idx=49,
+            # Parameters for training
             fg_iou_thresh=0.5, num_box_pairs_per_image=512, positive_fraction=0.25,
+            # Parameters for inference
             box_score_thresh=0.2, box_nms_thresh=0.5):
         
         super().__init__()
@@ -64,6 +68,7 @@ class InteractionHead(nn.Module):
         self.num_classes = num_classes  
 
         self.object_class_to_target_class = object_class_to_target_class
+        self.human_idx = human_idx
 
         self.fg_iou_thresh = fg_iou_thresh
         self.num_box_pairs_per_image = num_box_pairs_per_image
@@ -121,7 +126,7 @@ class InteractionHead(nn.Module):
         hoi_idx = [self.object_class_to_target_class[obj] 
             for obj in obj_cls]
         # Duplicate box pair indices for each HOI class
-        pair_idx = [i for i, hois in enumerate(hoi_idx) for _ in len(hois)]
+        pair_idx = [i for i, hois in enumerate(hoi_idx) for _ in range(len(hois))]
         # Flatten mapped HOI indices
         flat_hoi_idx = [hoi for hois in hoi_idx for hoi in hois]
         
@@ -129,31 +134,51 @@ class InteractionHead(nn.Module):
         
         return mapped_scores
 
-    def append_ground_truth_box_pairs(self, boxes_h, boxes_o, prior_scores, targets):
+    def append_ground_truth_box_pairs(self, paired_idx, boxes, labels, scores, targets):
         """
         Arguments:
-            boxes_h(Tensor[N, 4])
-            boxes_o(Tensor[N, 4])
-            prior_scores(Tensor[N, K])
+            paired_idx(Tensor[M, 2])
+            boxes(Tensor[N, 4])
+            labels(Tensor[N])
+            scores(Tensor[N])
             targets(dict[Tensor]): {
                 "boxes_h": Tensor[G, 4],
                 "boxes_o": Tensor[G, 4],
                 "object": Tensor[G]
             }
         Returns:
-            boxes_h(Tensor[N+G, 4])
-            ...
+            paired_idx(Tensor[M+G, 4])
+            boxes(Tensor[N+2G, 4])
+            labels(Tensor[N+2G])
+            scores(Tensor[N+2G])
         """
-        boxes_h = torch.cat([boxes_h, targets['boxes_h']], 0)
-        boxes_o = torch.cat([boxes_o, targets['boxes_o']], 0)
+        num_gt = len(targets['boxes_h'])
+        paired_idx = torch.cat([
+            torch.arange(2 * num_gt).view(2, -1).transpose(0, 1),
+            paired_idx
+        ], 0)
+        boxes = torch.cat([
+            targets['boxes_h'],
+            targets['boxes_o'],
+            boxes
+        ], 0)
+        # Assign ones as object detection scores to GT
+        scores = torch.cat([
+            torch.ones(
+                num_gt * 2,
+                dtype=scores.dtype,
+                device=scores.device
+            ), scores
+        ], 0)
+        labels = torch.cat([
+            self.human_idx * torch.ones(
+                num_gt,
+                dtype=labels.dtype,
+                device=labels.device
+            ), targets['object'], labels
+        ], 0)
 
-        gt_scores = torch.zeros(len(targets['boxes_h']), self.num_classes,
-                dtype=prior_scores.dtype, device=prior_scores.device)
-        for idx, obj_cls in enumerate(targets['object']):
-            gt_scores[idx, self.object_class_to_target_class[obj_cls]] = 1
-        prior_scores = torch.cat([prior_scores, gt_scores], 0)
-
-        return boxes_h, boxes_o, prior_scores
+        return paired_idx, boxes, labels, scores
 
     def subsample(self, labels):
         """
@@ -209,59 +234,72 @@ class InteractionHead(nn.Module):
         
         all_boxes_h = []
         all_boxes_o = []
-        all_interactions = []
+        all_labels = []
         all_prior_scores = []
-        for idx in range(len(boxes)):
+        for idx, (boxes_in_image, labels_in_image, scores_in_images) in enumerate(
+            zip(boxes, labels, scores)
+        ):
             # Find detections of human instances
-            h_idx = torch.nonzero(labels[idx] == 49).squeeze(1)
+            h_idx = torch.nonzero(labels_in_image == self.human_idx).squeeze(1)
             paired_idx = torch.cat([
                 v.flatten()[:, None] for v in torch.meshgrid(
-                    h_idx, torch.arange(len(labels[idx]), device=h_idx.device))
+                    h_idx, torch.arange(len(labels_in_image), device=h_idx.device))
             ], 1)
 
             # Remove pairs of the same human instance
             keep_idx = (paired_idx[:, 0] != paired_idx[:, 1]).nonzero().squeeze(1)
             paired_idx = paired_idx[keep_idx, :].view(-1, 2)
 
-            # Construct box pairs
-            boxes_h = boxes[idx][paired_idx[:, 0]].view(-1, 4)
-            boxes_o = boxes[idx][paired_idx[:, 1]].view(-1, 4)
-            interactions = None
-            prior_scores = self.map_object_scores_to_interaction_scores(
-                scores[idx], labels[idx], paired_idx)
+            # Placeholders
+            boxes_h = boxes_o = hoi_labels = None
 
-            # Assign labels to constructed box pairs
+            # Assign labels to constructed box pairs and perform subsampling
             if self.training:
-                target_in_image = targets[idx]
-                boxes_h, boxes_o, prior_scores = self.append_ground_truth_box_pairs(
-                    boxes_h, boxes_o, prior_scores, target_in_image)
+                targets_in_image = targets[idx]
+                paired_idx, boxes_in_image, labels_in_image, scores_in_images = \
+                    self.append_ground_truth_box_pairs(
+                        paired_idx,
+                        boxes_in_image,
+                        labels_in_image,
+                        scores_in_images,
+                        targets_in_image
+                    )
 
-                interactions = torch.zeros(len(boxes_h), self.num_classes,
-                        device=prior_scores.device)
+                hoi_labels = torch.zeros(len(paired_idx), self.num_classes,
+                        device=boxes_in_image.device)
+                boxes_h = boxes_in_image[paired_idx[:, 0]].view(-1, 4)
+                boxes_o = boxes_in_image[paired_idx[:, 1]].view(-1, 4)
 
                 fg_match = torch.nonzero(torch.min(
-                    box_ops.box_iou(boxes_h, target_in_image['boxes_h']),
-                    box_ops.box_iou(boxes_o, target_in_image['boxes_o'])
+                    box_ops.box_iou(boxes_h, targets_in_image['boxes_h']),
+                    box_ops.box_iou(boxes_o, targets_in_image['boxes_o'])
                 ) >= self.fg_iou_thresh).view(-1, 2)
-                interactions[
+                hoi_labels[
                     fg_match[:, 0], 
-                    target_in_image['hoi'][fg_match[:, 1]]
+                    targets_in_image['hoi'][fg_match[:, 1]]
                 ] = 1
 
                 # Subsample up to a specified number of box pairs 
                 # with fixed positive-negative ratio
-                sampled_idx = self.subsample(interactions)
+                sampled_idx = self.subsample(hoi_labels)
+                paired_idx = paired_idx[sampled_idx].view(-1, 2)
                 boxes_h = boxes_h[sampled_idx].view(-1, 4)
                 boxes_o = boxes_o[sampled_idx].view(-1, 4)
-                interactions = interactions[sampled_idx].view(-1, self.num_classes)
-                prior_scores = prior_scores[sampled_idx].view(-1, self.num_classes)
+                hoi_labels = hoi_labels[sampled_idx].view(-1, self.num_classes)
+
+            if boxes_h is None or boxes_o is None:
+                boxes_h = boxes_in_image[paired_idx[:, 0]]
+                boxes_o = boxes_in_image[paired_idx[:, 1]]
+            prior_scores = self.map_object_scores_to_interaction_scores(
+                scores_in_images, labels_in_image, paired_idx
+            )
 
             all_boxes_h.append(boxes_h)
             all_boxes_o.append(boxes_o)
-            all_interactions.append(interactions)
+            all_labels.append(hoi_labels)
             all_prior_scores.append(prior_scores)
 
-        return all_boxes_h, all_boxes_o, all_interactions, all_prior_scores
+        return all_boxes_h, all_boxes_o, all_labels, all_prior_scores
 
 
     def compute_interaction_classification_loss(self, class_logits, prior_scores, box_pair_labels):
