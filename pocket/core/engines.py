@@ -14,7 +14,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from ..data import DataDict
-from ..ops import relocate_to_cuda
+from ..ops import relocate_to_device
 from ..utils import NumericalMeter, AveragePrecisionMeter
 
 __all__ = [
@@ -176,8 +176,8 @@ class LearningEngine(State):
 
     def _on_start_iteration(self):
         self._state.iteration += 1
-        self._state.input = relocate_to_cuda(self._state.input, self._device)
-        self._state.target = relocate_to_cuda(self._state.target, self._device)
+        self._state.input = relocat_to_device(self._state.input, self._device)
+        self._state.target = relocat_to_device(self._state.target, self._device)
 
     def _on_end_iteration(self):
         if self._verbal and self._state.iteration % self._print_interval == 0:
@@ -326,7 +326,7 @@ class MultiClassClassificationEngine(LearningEngine):
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
-            batch = relocate_to_cuda(batch, self._device)
+            batch = relocat_to_device(batch, self._device)
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
@@ -482,7 +482,7 @@ class MultiLabelClassificationEngine(LearningEngine):
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
-            batch = relocate_to_cuda(batch, self._device)
+            batch = relocat_to_device(batch, self._device)
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
