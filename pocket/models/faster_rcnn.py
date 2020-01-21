@@ -8,6 +8,48 @@ The Australian National University
 Australian Centre for Robotic Vision
 """
 
+"""
+Acknowledgement:
+
+Source code in this module is largely modified from
+https://github.com/pytorch/vision/tree/master/torchvision/models/detection
+
+See below for detailed license
+
+BSD 3-Clause License
+
+Copyright (c) Soumith Chintala 2016, 
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+from collections import OrderedDict
+
+import torch
 from torch import nn
 from torchvision import models
 from torchvision.ops import misc as misc_nn_ops
@@ -15,6 +57,12 @@ from torchvision.models._utils import IntermediateLayerGetter
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+
+__all__ = [
+    'fasterrcnn_resnet',
+    'fasterrcnn_resnet_fpn',
+    'fasterrcnn_resnet_fpn_x'
+]
 
 def resnet_backbone(backbone_name, pretrained):
     backbone = models.resnet.__dict__[backbone_name](
@@ -89,3 +137,76 @@ def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
         print("WARNING: No pretrained detector on MS COCO with {}.".format(backbone_name),
             "Proceed with only pretrained backbone on ImageNet.")
     return model
+
+class FasterRCNN_(nn.Module):
+    """
+    Modified Faster R-CNN
+
+    By default, the RoI head performs regression in conjunction with classification.
+    This introduces a mismatch between box scores and the regressed coordinates. Also,
+    class-specific regression results in a single score kept for each box, as opposed
+    to a probability distribution over target classes. This module pools the already
+    regressed boxes and addds an extra round of classification to give a more reliable
+    score distribution for all object classes
+
+    Arguments:
+        frccn(GeneralizedRCNN): An instantiated Faster R-CNN model
+    """
+    def __init__(self, frcnn):
+        super().__init__()
+        self.transform = frcnn.transform
+        self.backbone = frcnn.backbone
+        self.rpn = frcnn.rpn
+        self.roi_heads = frcnn.roi_heads
+
+    def forward(self, images, targets=None):
+        """
+        Arguments:
+            images (list[Tensor]): images to be processed
+            targets (list[Dict[Tensor]]): ground-truth boxes present in the image (optional)
+
+        Returns:
+            dict[Tensor]: During training, return a dict that contains the losses
+            list[dict]: During testing, return dicts of detected boxes
+                "boxes": Tensor[M, 4]
+                "scores": Tensor[M, C]
+        """
+        if self.training and targets is None:
+            raise ValueError("In training mode, targets should be passed")
+        original_image_sizes = [img.shape[-2:] for img in images]
+        images, targets = self.transform(images, targets)
+        features = self.backbone(images.tensors)
+        if isinstance(features, torch.Tensor):
+            features = OrderedDict([(0, features)])
+        proposals, proposal_losses = self.rpn(images, features, targets)
+        detections, detector_losses = self.roi_heads(features, proposals, images.image_sizes, targets)
+
+        # Extract the regressed boxes
+        detections = [det['boxes'] for det in detections]
+        boxes_per_image = [len(boxes_in_image) for boxes_in_image in detections]
+        # RoI reprojection
+        box_features = self.roi_heads.box_roi_pool(features, detections, images.image_sizes)
+        boxes_features = self.roi_heads.box_head(box_features)
+        # Classification
+        class_logits, _ = self.roi_heads.box_predictor(box_features)
+        pred_scores = nn.functional.softmax(class_logits, -1).split(boxes_per_image, 0)
+        # Format the detections
+        detections = [
+            dict(boxes=boxes_in_image, scores=scores_in_image) for
+                boxes_in_image, scores_in_image in zip(detections, pred_scores)
+        ]
+
+        detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+
+        losses = {}
+        losses.update(detector_losses)
+        losses.update(proposal_losses)
+
+        if self.training:
+            return losses
+
+        return detections
+
+def fasterrcnn_resnet_fpn_x(*args, **kwargs):
+    """Instantiate FRCNN-ResNet-FPN with extra RoI projection"""
+    return FasterRCNN_(fasterrcnn_resnet_fpn(*args, **kwargs))
