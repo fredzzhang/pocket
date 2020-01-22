@@ -29,7 +29,7 @@ class InteractionHead(nn.Module):
         num_classes(int): Number of output classes
         object_class_to_target_class(list[Tensor]): Each element in the list maps an object class
             to corresponding target classes
-        human_idx(int): The index of human in object classes
+        human_idx(int): The index of human/person class in all objects
 
     [OPTIONAL ARGS]
         fg_iou_thresh(float): Minimum intersection over union between proposed box pairs and ground
@@ -92,22 +92,22 @@ class InteractionHead(nn.Module):
         detections(list[dict]): Object detections with following keys 
             "boxes": Tensor[N,4]
             "labels": Tensor[N] 
-            "scores": Tensor[N]
+            "scores": Tensor[N, C]
         """
         results = []
         for detection in detections:
             boxes, labels, scores = detection.values()
 
             # Remove low scoring boxes
-            keep_idx = torch.nonzero(scores > self.box_score_thresh).squeeze(1)
-            boxes = boxes[keep_idx, :].view(-1, 4)
-            scores = scores[keep_idx].view(-1)
+            keep_idx = torch.nonzero(scores.max(1)[0] > self.box_score_thresh).squeeze(1)
+            boxes = boxes[keep_idx].view(-1, 4)
+            scores = scores[keep_idx].view(-1, scores.shape[1])
             labels = labels[keep_idx].view(-1)
 
             # Class-wise non-maximum suppresion
-            keep_idx = box_ops.batched_nms(boxes, scores, labels, self.box_nms_thresh)
-            boxes = boxes[keep_idx, :].view(-1, 4)
-            scores = scores[keep_idx].view(-1)
+            keep_idx = box_ops.batched_nms(boxes, scores.max(1)[0], labels, self.box_nms_thresh)
+            boxes = boxes[keep_idx].view(-1, 4)
+            scores = scores[keep_idx].view(-1, scores.shape[1])
             labels = labels[keep_idx].view(-1)
 
             results.append(dict(boxes=boxes, labels=labels, scores=scores))
@@ -443,10 +443,12 @@ class TrainableHead(nn.Module):
 
     Arguments:
         cls_corr(list[Tensor]): One-to-many mapping from object classes to interaction classes
+        human_idx(int): The index of human/person class in all objects
         backbone(str): The name of backbone CNN to be used. 
             Refer to torchvision.models.deteciton.backbone_utils for more details.
+        ...
     """
-    def __init__(self, cls_corr,
+    def __init__(self, cls_corr, human_idx,
             # Backbone parameters
             backbone='resnet50', pretrained=True,
             # Transformation parameters
@@ -489,7 +491,7 @@ class TrainableHead(nn.Module):
             pooler,
             (self.backbone.out_channels, output_size, output_size),
             representation_size, num_classes,
-            object_class_to_target_class=cls_corr, **kwargs
+            cls_corr, human_idx, **kwargs
         )
 
     def preprocess(self, images, detections, targets=None):
