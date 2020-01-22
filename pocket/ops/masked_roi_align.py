@@ -52,7 +52,7 @@ from torchvision.ops.roi_align import _RoIAlignFunction
 
 def masked_roi_align(features, boxes, masks, output_size,
         spatial_scale=1.0, sampling_ratio=-1, 
-        mem_limit=10, reserve=128):
+        mem_limit=8, reserve=128):
     """
     Perform masked RoI align given individual bounding boxes and corresponding masks
 
@@ -80,7 +80,7 @@ def masked_roi_align(features, boxes, masks, output_size,
             <= 0, then an adaptive number of grid points are used (computed as
             ceil(roi_width / pooled_w), and likewise for height). Default: -1
         mem_limit(int): Memory limit (GB) allowed in this module. The maximum number of feature
-            map clones made will be inferred from this. Default: 10
+            map clones made will be inferred from this. Default: 8
         reserve(int): Memory (MB) overhead preserved for miscellaneous variables. The memory
             limit will be subtracted by this value. Default: 128
     """
@@ -92,16 +92,14 @@ def masked_roi_align(features, boxes, masks, output_size,
         masks = torch.cat(masks, 0)
 
     num_boxes = len(boxes)
-    output = torch.zeros(num_boxes, features.shape[1], *output_size,
-        dtype=features.dtype,
-        device=features.device,
-    )
+    output_shape = (num_boxes, features.shape[1],) + output_size
+    output = []
 
     MB = 1024 ** 2; GB = MB * 1024
-    # The available memory set for 
+    # The memory available for cloning feature maps
     clone_limit = ((
         mem_limit * GB - reserve * MB
-        - torch.as_tensor(output.shape).prod() * 4
+        - torch.as_tensor(output_shape).prod() * 4
         - torch.as_tensor(masks.shape).prod() * 4
         ) / torch.as_tensor(features.shape[1:]).prod() * 4
     ).item()
@@ -118,7 +116,7 @@ def masked_roi_align(features, boxes, masks, output_size,
         # Modify the batch index to align with feature map clones
         boxes[start_idx: end_idx, 0] = torch.arange(end_idx - start_idx,
             device=boxes.device, dtype=boxes.dtype)
-        output[start_idx: end_idx] = \
+        output.append(
             _RoIAlignFunction.apply(
                 per_instance_features * masks[start_idx: end_idx],
                 boxes[start_idx: end_idx, :],
@@ -126,6 +124,10 @@ def masked_roi_align(features, boxes, masks, output_size,
                 spatial_scale,
                 sampling_ratio
             )
+        )
+    output = torch.cat(output, 0)
+    assert output.shape == output_shape, \
+        "Inconsistent feature size"
 
     return output
 
