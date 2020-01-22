@@ -186,7 +186,7 @@ class FasterRCNN_(nn.Module):
         boxes_per_image = [len(boxes_in_image) for boxes_in_image in detections]
         # RoI reprojection
         box_features = self.roi_heads.box_roi_pool(features, detections, images.image_sizes)
-        boxes_features = self.roi_heads.box_head(box_features)
+        box_features = self.roi_heads.box_head(box_features)
         # Classification
         class_logits, _ = self.roi_heads.box_predictor(box_features)
         pred_scores = nn.functional.softmax(class_logits, -1).split(boxes_per_image, 0)
