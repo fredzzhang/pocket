@@ -255,7 +255,8 @@ class AveragePrecisionMeter:
         with multiprocessing.Pool() as pool:
             for idx, result in enumerate(pool.imap(
                 func=algorithm_handle,
-                iterable=zip(prec.T, rec.T),
+                # NOTE: Use transpose instead of T for compatibility
+                iterable=zip(prec.transpose(0,1), rec.transpose(0,1)),
                 chunksize=chunksize
             )):
                 ap[idx] = result
