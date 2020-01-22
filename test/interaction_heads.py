@@ -32,7 +32,7 @@ def test(args):
     )
 
     interaction_head = TrainableHead(
-            dataset.object_to_interaction,
+            dataset.object_to_interaction, 49,
             masked_pool=args.masked_pool)
     if use_gpu:
         interaction_head = interaction_head.cuda()
@@ -60,8 +60,7 @@ def test(args):
     if args.mode == 'train':
         print(results['interaction_loss'])
     else:
-        for label in results[0]['labels']:
-            print(label)
+        print(results[0]['scores'])
 
 if __name__ == '__main__':
 
