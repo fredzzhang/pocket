@@ -209,11 +209,15 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
             then exactly sampling_ratio x sampling_ratio grid points are used. If
             <= 0, then an adaptive number of grid points are used (computed as
             ceil(roi_width / pooled_w), and likewise for height)
-        mem_limit(int): Memory limit (GB) for feature map clones. Default: 8
+        mem_limit(int): Memory limit (GB) allowed in this module. The maximum number of feature
+            map clones made will be inferred from this. Default: 8
+        reserve(int): Memory (MB) overhead preserved for miscellaneous variables. The memory
+            limit will be subtracted by this value. Default: 128
     """
-    def __init__(self, output_size, spatial_scale, sampling_ratio, mem_limit=512):
+    def __init__(self, output_size, spatial_scale, sampling_ratio, mem_limit=8, reserve=128):
         super().__init__(output_size, spatial_scale, sampling_ratio)
         self.mem_limit = mem_limit
+        self.reserve = reserve
 
     def __repr__(self):
         """Return the executable string representation"""
@@ -333,13 +337,12 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
                 boxes_1, boxes_2
             )
             return masked_roi_align(
-                features[0],
-                box_pair_union,
-                box_pair_masks,
-                self.output_size,
+                features[0], box_pair_union,
+                box_pair_masks, self.output_size,
                 spatial_scale=self.spatial_scale[0],
                 sampling_ratio=self.sampling_ratio,
-                mem_limit=self.mem_limit
+                mem_limit=self.mem_limit,
+                reserve=self.reserve
             )
 
         levels = self.map_levels(boxes_1, boxes_2)
@@ -368,7 +371,8 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
                 masks_per_level, self.output_size,
                 spatial_scale=scale,
                 sampling_ratio=self.sampling_ratio,
-                mem_limit=self.mem_limit
+                mem_limit=self.mem_limit,
+                reserve=self.reserve
             )
 
         return result
