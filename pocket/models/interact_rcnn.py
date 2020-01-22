@@ -328,7 +328,7 @@ class InteractionHead(nn.Module):
             results.append(dict(
                 boxes_h=b_h,
                 boxes_o=b_o,
-                scores=interaction_scores
+                scores=scores
             ))
 
         return results
