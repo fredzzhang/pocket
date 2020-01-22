@@ -96,7 +96,9 @@ class InteractionHead(nn.Module):
         """
         results = []
         for detection in detections:
-            boxes, labels, scores = detection.values()
+            boxes = detection['boxes']
+            labels = detection['labels']
+            scores = detection['scores']
 
             # Remove low scoring boxes
             keep_idx = torch.nonzero(scores.max(1)[0] > self.box_score_thresh).squeeze(1)
@@ -129,7 +131,7 @@ class InteractionHead(nn.Module):
 
         h_idx, o_idx = paired_idx.unbind(1)
         # Product of object detection scores for each pair
-        prod = scores[h_idx, self.human_idx] * scores[o_idx]
+        prod = scores[h_idx, self.human_idx][:, None] * scores[o_idx]
 
         mapped_scores = prod.mm(self._transition)
         
