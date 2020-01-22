@@ -457,9 +457,9 @@ class TrainableHead(nn.Module):
             min_size=800, max_size=1333, 
             image_mean=None, image_std=None,
             # Pooler parameters
-            masked_pool=True,
-            output_size=7, spatial_scale=None, 
-            sampling_ratio=2, mem_limit=6,
+            output_size=7, spatial_scale=None, sampling_ratio=2, 
+            # Parameters for masked pooling
+            masked_pool=True, mem_limit=8, reserve=128,
             # MLP parameters
             representation_size=1024, num_classes=600,
             **kwargs):
@@ -480,7 +480,8 @@ class TrainableHead(nn.Module):
                 output_size=output_size,
                 spatial_scale=spatial_scale,
                 sampling_ratio=sampling_ratio,
-                mem_limit=mem_limit
+                mem_limit=mem_limit,
+                reserve=reserve
             )
         else:
             pooler = SimpleBoxPairPool(
