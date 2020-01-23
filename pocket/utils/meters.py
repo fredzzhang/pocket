@@ -340,7 +340,8 @@ class AveragePrecisionMeter:
 
         # Sanity check
         if self.num_gt is not None:
-            faulty_cls = (self._labels.sum(0) > self.num_gt).nonzero().squeeze(1)
+            self.num_gt = self.num_gt.to(dtype=self._labels.dtype)
+            faulty_cls = torch.nonzero(self._labels.sum(0) > self.num_gt).squeeze(1)
             if len(faulty_cls):
                 raise AssertionError("Class {}: ".format(faulty_cls.tolist())+
                     "Number of true positives larger than that of ground truth")
