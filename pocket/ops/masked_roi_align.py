@@ -93,6 +93,10 @@ def masked_roi_align(features, boxes, masks, output_size,
 
     num_boxes = len(boxes)
     output_shape = (num_boxes, features.shape[1],) + output_size
+    if num_boxes == 0:
+        return torch.empty(output_shape,
+                device=features.device,
+                dtype=features.dtype)
     output = []
 
     MB = 1024 ** 2; GB = MB * 1024
