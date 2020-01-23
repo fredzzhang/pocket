@@ -105,9 +105,8 @@ def masked_roi_align(features, boxes, masks, output_size,
         mem_limit * GB - reserve * MB
         - torch.as_tensor(output_shape).prod() * 4
         - torch.as_tensor(masks.shape).prod() * 4
-        ) / torch.as_tensor(features.shape[1:]).prod() * 4
+        ) / torch.as_tensor(features.shape[1:]).prod() / 4
     ).item()
-        
     num_iter = num_boxes // clone_limit + bool(num_boxes % clone_limit)
     # Compute pooled features iteratively based on maximum number of feature map
     # clones allowed
@@ -129,6 +128,9 @@ def masked_roi_align(features, boxes, masks, output_size,
                 sampling_ratio
             )
         )
+        # Release memory occupied by cloned feature maps
+        del per_instance_features
+
     output = torch.cat(output, 0)
     assert output.shape == output_shape, \
         "Inconsistent feature size"
