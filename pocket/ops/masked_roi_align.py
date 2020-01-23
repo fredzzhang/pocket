@@ -118,7 +118,7 @@ def masked_roi_align(features, boxes, masks, output_size,
             device=boxes.device, dtype=boxes.dtype)
         output.append(
             _RoIAlignFunction.apply(
-                per_instance_features * masks[start_idx: end_idx],
+                per_instance_features.mul_(masks[start_idx: end_idx]),
                 boxes[start_idx: end_idx, :],
                 output_size,
                 spatial_scale,
