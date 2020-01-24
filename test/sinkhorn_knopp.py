@@ -58,6 +58,8 @@ class TestSinkhornKnopp(unittest.TestCase):
         self.assertRaises(AssertionError, m, x)
         x = torch.rand(3,4,5)
         self.assertRaises(AssertionError, m, x)
+        x = torch.rand(100)
+        self.assertRaises(AssertionError, m, x)
 
         x = torch.randint(0, 10, (30, 30))
         x1 = m(x.numpy())
@@ -99,6 +101,24 @@ class TestSinkhornKnopp(unittest.TestCase):
         self.assertTrue(x.sum() / 6 - 1 < m.tolerance)
         self.assertTrue(torch.all((x.sum(0)[2:] - 6/11).abs() < m.tolerance))
         self.assertTrue(torch.all((x.sum(1)[2:] - 1).abs() < m.tolerance))
+
+    def test_unusual_shapes(self):
+        m = SinkhornKnoppNorm2d()
+        x = torch.empty(0, 10)
+        self.assertTrue(torch.all(torch.eq(x, m(x))))
+
+        x = torch.zeros(3,5)
+        self.assertTrue(torch.all(torch.eq(x, m(x))))
+
+        x = m(torch.rand(1,5))
+        self.assertTrue((torch.sum(x) - 1).abs() < m.tolerance)
+
+        x = m(torch.rand(20, 1))
+        self.assertTrue((torch.sum(x) - 1).abs() < m.tolerance)
+
+        x = m(torch.rand(1, 1))
+        self.assertTrue((x - 1).abs() < m.tolerance)
+
 
 if __name__ == '__main__':
     unittest.main()
