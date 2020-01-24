@@ -11,7 +11,7 @@ import torch
 import unittest
 import warnings
 
-from pocket.ops import SinkhornKnoppNorm
+from pocket.ops import SinkhornKnoppNorm2d
 
 class TestSinkhornKnopp(unittest.TestCase):
 
@@ -24,10 +24,10 @@ class TestSinkhornKnopp(unittest.TestCase):
         self.assertEqual(m.max_iter, 1000)
         self.assertEqual(m.tolerance, 0.001)
 
-        self.assertRaises(AssertionError, SinkhornKnoppNorm, max_iter='10')
-        self.assertRaises(AssertionError, SinkhornKnoppNorm, max_iter=-1)
-        self.assertRaises(AssertionError, SinkhornKnoppNorm, tolerance='0.5')
-        self.assertRaises(AssertionError, SinkhornKnoppNorm, tolerance=0)
+        self.assertRaises(AssertionError, SinkhornKnoppNorm2d, max_iter='10')
+        self.assertRaises(AssertionError, SinkhornKnoppNorm2d, max_iter=-1)
+        self.assertRaises(AssertionError, SinkhornKnoppNorm2d, tolerance='0.5')
+        self.assertRaises(AssertionError, SinkhornKnoppNorm2d, tolerance=0)
         with self.assertRaises(AttributeError):
             m.tolerance = 0.01
         with self.assertRaises(AttributeError):
@@ -37,13 +37,13 @@ class TestSinkhornKnopp(unittest.TestCase):
         self.assertEqual(m.max_iter, 200)
 
     def test_init(self):
-        m = SinkhornKnoppNorm()
+        m = SinkhornKnoppNorm2d()
         n = eval(repr(m))
         self.test_basic(m)
         self.test_basic(n)
 
     def test_random_logits(self):
-        m = SinkhornKnoppNorm()
+        m = SinkhornKnoppNorm2d()
         x = m(torch.rand(6, 6))
         self.assertTrue(torch.all((x.sum(0) - 1).abs() < m.tolerance))
         self.assertTrue(torch.all((x.sum(1) - 1).abs() < m.tolerance))
@@ -53,7 +53,7 @@ class TestSinkhornKnopp(unittest.TestCase):
         self.assertTrue(torch.all((x.sum(1) - 1).abs() < m.tolerance))
 
     def test_input_format(self):
-        m = SinkhornKnoppNorm()
+        m = SinkhornKnoppNorm2d()
         x = torch.tensor([[1, 2], [-1, 3]])
         self.assertRaises(AssertionError, m, x)
         x = torch.rand(3,4,5)
@@ -68,7 +68,7 @@ class TestSinkhornKnopp(unittest.TestCase):
         self.assertTrue(torch.all((x2.sum(1) - 1).abs() < m.tolerance))
 
     def test_nonsquare_matrices(self):
-        m = SinkhornKnoppNorm()
+        m = SinkhornKnoppNorm2d()
         x = m(torch.rand(100, 1000) * 100)
         self.assertTrue(torch.all((x.sum(0) - 0.1).abs() < m.tolerance))
         self.assertTrue(torch.all((x.sum(1) - 1).abs() < m.tolerance))
@@ -78,7 +78,7 @@ class TestSinkhornKnopp(unittest.TestCase):
         self.assertTrue(torch.all((x.sum(1) - 0.05).abs() < m.tolerance))
 
     def test_zero_rows_and_cols(self):
-        m = SinkhornKnoppNorm()
+        m = SinkhornKnoppNorm2d()
         x = torch.rand(30, 30)
         r_idx = [0, 15, 16]; c_idx = [2, 9, 28]
         x[r_idx, :] = 0; x[:, c_idx] = 0
