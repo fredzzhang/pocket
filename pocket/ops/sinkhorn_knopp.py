@@ -34,7 +34,8 @@ def sinkhorn_knopp_norm2d(x, max_iter=1e3, tolerance=1e-3, eps=1e-6):
         tolerance(float): Tolerance used to determine stopping condition. Default: 1e-3
         eps(float): Small constant to avoid division by zero
     Returns:
-        Tensor[M, N]
+        Tensor[M, N]: Normalised matrix
+        int: Number of iterations used
     """
     device = x.device if type(x) is torch.Tensor else None
     # Format input data
@@ -52,6 +53,10 @@ def sinkhorn_knopp_norm2d(x, max_iter=1e3, tolerance=1e-3, eps=1e-6):
     r_idx = (r_sum).nonzero().squeeze(1)
     n_c = c_idx.numel()
     n_r = r_idx.numel()
+
+    # The given matrix does not have non-zero elements
+    if not n_c or not n_r:
+        return x, 0
 
     rr, cc = torch.meshgrid(r_idx, c_idx)
     x_ = x[rr, cc]
