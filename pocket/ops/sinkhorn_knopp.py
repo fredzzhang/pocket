@@ -8,11 +8,10 @@ Australian Centre for Robotic Vision
 """
 
 import torch
-import warnings
 
 class SinkhornKnoppNorm:
     """
-    Sinkhorn-Knopp algorithm
+    Sinkhorn-Knopp normalisation algorithm
 
     Adapted from:
         David Young (2020). Sinkhorn-Knopp algorithm for matrix normalisation,
@@ -20,9 +19,13 @@ class SinkhornKnoppNorm:
         MATLAB Central File Exchange.
 
     This implementation relaxes the constraint on input matrix to any non-negative
-    matrices, including non-square ones, and performs row and column normalisation 
-    iteratively. The algorithm stops when either the maximum number of iterations 
-    is reached or the sum of each row and column is within a tolerance of 1.
+    matrices, including non-square ones and matrices with zero rows or columns. 
+    
+    Because zero rows and columns do not contribute to normalisation, they are
+    ignored. In general, matrix of size MxN (already striped of zero rows and columns)
+    is normalised such that the sum of each row equals 1/M and the sum of each column
+    equals 1/N. This guarantees the matrix sums up to unity. Once converged, the matrix
+    will be scaled by min{M, N}
 
     Arguments:
         max_iter(int or float): The maximum number of iterations. Default: 1e3
@@ -92,34 +95,41 @@ class SinkhornKnoppNorm:
         assert torch.all(x >= 0), "Given matrix contains negative entries"
         assert x.ndim == 2, "The dimensionality of given matrix is not 2"
 
-        if x.shape[0] != x.shape[1]:
-            warnings.warn("The given matrix is not a square matrix. "
-                "The algorithm may not converge", UserWarning)
-
         c_sum = x.sum(0)
         r_sum = x.sum(1)
+        # Zero rows or columns do not contribute
+        c_idx = (c_sum).nonzero().squeeze(1)
+        r_idx = (r_sum).nonzero().squeeze(1)
+        n_c = c_idx.numel()
+        n_r = r_idx.numel()
 
-        if not torch.all(c_sum > 0) or not torch.all(r_sum > 0):
-            warnings.warn("The given matrix contains rows or columns of zeros. "
-                "The algorithm may not converge", UserWarning)
+        rr, cc = torch.meshgrid(r_idx, c_idx)
+        x_ = x[rr, cc]
 
+        ratio = n_c / n_r
         # First iteration
         niter = 1
-        # Column sums are kept as a row vector and row sums a column vector
-        c = 1 / (c_sum + eps)[None, :]
-        r = 1 / (x.mm(c.T) + eps)
+        # NOTE: Always normalise column sums to 1. Row sums will be normalised
+        # accordinly. This implementation has better numerical stability when
+        # there is significant divergence between the number of rows and columns. 
+        c = 1 / (x_.sum(0) + eps)[None, :]
+        r = 1 / (x_.mm(c.transpose(0, 1)) + eps) * ratio
         # Subsequent interations
         while niter < self._max_iter:
             niter += 1
             # Compute the column sums after row normalisation
-            c_inv = r.T.mm(x)
-            # Stop if column sums are within the tolerance of 1
+            c_inv = r.transpose(0, 1).mm(x_)
+            # Stop if column sums are within the tolerance of 1/N
             if (c_inv * c - 1).abs().max() < self._tol:
                 break
             c = 1 / (c_inv + eps)
-            r = 1 / (x.mm(c.T) + eps)
+            r = 1 / (x_.mm(c.transpose(0, 1)) + eps) * ratio
 
         # Update iteration counter
         self._iter = niter
 
-        return x * r.mm(c)
+        x_ = x_.mul_(r.mm(c))
+        # Rescale the matrix if rows sums are larger than 1
+        x[rr, cc] = x_ if ratio <= 1 else x_ / ratio
+
+        return x
