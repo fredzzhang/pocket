@@ -78,21 +78,12 @@ class InteractionHead(nn.Module):
         self.box_score_thresh = box_score_thresh
         self.box_nms_thresh = box_nms_thresh
 
-        # Construct class transition matrix
-        # Each column is a one-hot vector
-        self._transition = torch.zeros(
-            len(object_class_to_target_class),
-            num_classes
-        )
-        for i, idx in enumerate(object_class_to_target_class):
-            self._transition[i, idx] = 1
-
     def filter_detections(self, detections):
         """
         detections(list[dict]): Object detections with following keys 
             "boxes": Tensor[N,4]
             "labels": Tensor[N] 
-            "scores": Tensor[N, C]
+            "scores": Tensor[N]
         """
         results = []
         for detection in detections:
@@ -101,39 +92,51 @@ class InteractionHead(nn.Module):
             scores = detection['scores']
 
             # Remove low scoring boxes
-            keep_idx = torch.nonzero(scores.max(1)[0] > self.box_score_thresh).squeeze(1)
+            keep_idx = torch.nonzero(scores > self.box_score_thresh).squeeze(1)
             boxes = boxes[keep_idx].view(-1, 4)
-            scores = scores[keep_idx].view(-1, scores.shape[1])
+            scores = scores[keep_idx].view(-1)
             labels = labels[keep_idx].view(-1)
 
             # Class-wise non-maximum suppresion
-            keep_idx = box_ops.batched_nms(boxes, scores.max(1)[0], labels, self.box_nms_thresh)
+            keep_idx = box_ops.batched_nms(
+                boxes, scores, labels, 
+                self.box_nms_thresh
+            )
             boxes = boxes[keep_idx].view(-1, 4)
-            scores = scores[keep_idx].view(-1, scores.shape[1])
+            scores = scores[keep_idx].view(-1)
             labels = labels[keep_idx].view(-1)
 
             results.append(dict(boxes=boxes, labels=labels, scores=scores))
 
         return results
 
-    def map_object_scores_to_interaction_scores(self, scores, paired_idx):
+    def map_object_scores_to_interaction_scores(self, scores, labels, paired_idx):
         """
         Arguments:
-            scores(Tensor[N, C]): Object confidence scores
+            scores(Tensor[N]): Object confidence scores
+            labels(Tensor[N]): Object labels of HICO80 with zero-based index
             paired_idx(Tensor[M, 2])
         Returns:
             mapped_scores(Tensor[M, K]): Object confidence scores mapped to interaction classes
                 that contain the corresponding object
         """
-        dtype, device = scores.dtype, scores.device
-        # Force device and data type
-        self._transition = self._transition.to(dtype=dtype, device=device)
+        mapped_scores = torch.zeros(len(paired_idx), self.num_classes,
+            dtype=scores.dtype, device=scores.device)
 
         h_idx, o_idx = paired_idx.unbind(1)
         # Product of object detection scores for each pair
-        prod = scores[h_idx, self.human_idx][:, None] * scores[o_idx]
+        prod = scores[h_idx] * scores[o_idx]
 
-        mapped_scores = prod.mm(self._transition)
+        obj_cls = labels[o_idx]
+        # Find mapped HOI indices for each pair
+        hoi_idx = [self.object_class_to_target_class[obj] 
+            for obj in obj_cls]
+        # Duplicate box pair indices for each HOI class
+        pair_idx = [i for i, hois in enumerate(hoi_idx) for _ in range(len(hois))]
+        # Flatten mapped HOI indices
+        flat_hoi_idx = [hoi for hois in hoi_idx for hoi in hois]
+
+        mapped_scores[pair_idx, flat_hoi_idx] = prod[pair_idx]
         
         return mapped_scores
 
@@ -143,7 +146,7 @@ class InteractionHead(nn.Module):
             paired_idx(Tensor[M, 2])
             boxes(Tensor[N, 4])
             labels(Tensor[N])
-            scores(Tensor[N, C])
+            scores(Tensor[N])
             targets(dict[Tensor]): {
                 "boxes_h": Tensor[G, 4],
                 "boxes_o": Tensor[G, 4],
@@ -153,7 +156,7 @@ class InteractionHead(nn.Module):
             paired_idx(Tensor[M+G, 4])
             boxes(Tensor[N+2G, 4])
             labels(Tensor[N+2G])
-            scores(Tensor[N+2G, C])
+            scores(Tensor[N+2G])
         """
         num_gt = len(targets['boxes_h'])
         paired_idx = torch.cat([
@@ -176,16 +179,14 @@ class InteractionHead(nn.Module):
                 device=labels.device
             ), targets['object'], labels
         ], 0)
+        # FIXME Assign ones as object detection scores to GT
         scores = torch.cat([
-            torch.zeros(
-                num_gt * 2, scores.shape[1],
+            torch.ones(
+                num_gt * 2,
                 dtype=scores.dtype,
                 device=scores.device
             ), scores
         ], 0)
-        # FIXME: Assign ones as object detection scores to GT
-        scores[:num_gt, self.human_idx] = 1
-        scores[list(range(num_gt, 2*num_gt)), targets['object']] = 1
 
         return paired_idx, boxes, labels, scores
 
@@ -224,7 +225,7 @@ class InteractionHead(nn.Module):
         Arguments:
             boxes(list[Tensor[N, 4]])
             labels(list[Tensor[N]]): Object labels of HICO80 with zero-based index
-            scores(list[Tensor[N, C]]): Object confidence scores
+            scores(list[Tensor[N]]): Object confidence scores
             targets(dict[Tensor]): {
                 "boxes_h": Tensor[G, 4],
                 "boxes_o": Tensor[G, 4],
@@ -300,7 +301,7 @@ class InteractionHead(nn.Module):
                 boxes_h = boxes_in_image[paired_idx[:, 0]]
                 boxes_o = boxes_in_image[paired_idx[:, 1]]
             prior_scores = self.map_object_scores_to_interaction_scores(
-                scores_in_images, paired_idx
+                scores_in_images, labels_in_image, paired_idx
             )
 
             all_boxes_h.append(boxes_h)
@@ -311,11 +312,16 @@ class InteractionHead(nn.Module):
         return all_boxes_h, all_boxes_o, all_labels, all_prior_scores
 
 
-    def compute_interaction_classification_loss(self, class_logits, prior_scores, box_pair_labels):
-        return torch.nn.functional.binary_cross_entropy(
-            torch.sigmoid(class_logits) * prior_scores,
-            box_pair_labels
-        )
+    def compute_interaction_classification_loss(self, 
+            class_logits, prior_scores, box_pair_labels):
+        # Ignore interaction classes with zero prior scores
+        i, j = prior_scores.nonzero().unbind(1)
+
+        interaction_scores = prior_scores[i, j] * \
+            torch.sigmoid(class_logits)[i, j]
+        labels = box_pair_labels[i, j]
+
+        return torch.nn.functional.binary_cross_entropy(interaction_scores, labels)
 
     def postprocess(self, class_logits, prior_scores, boxes_h, boxes_o):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
@@ -325,10 +331,15 @@ class InteractionHead(nn.Module):
         results = []
         for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
 
+            keep_cls = [s.nonzero().squeeze(1) for s in scores]
+            keep_box = torch.as_tensor([bool(len(pred_cls)) for pred_cls in keep_cls],
+                device=keep_cls[0].device)
+
             results.append(dict(
-                boxes_h=b_h,
-                boxes_o=b_o,
-                scores=scores
+                boxes_h=b_h[keep_box].view(-1, 4),
+                boxes_o=b_o[keep_box].view(-1, 4),
+                labels=keep_cls,
+                scores=[scores[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
             ))
 
         return results
@@ -340,7 +351,7 @@ class InteractionHead(nn.Module):
                 a feature level
             detections(list[dict]): Object detections with following keys 
                 boxes(Tensor[N,4]),
-                labels(Tensor[N, C]) 
+                labels(Tensor[N]) 
                 scores(Tensor[N])
             targets(list[dict]): Interaction targets with the following keys
                 boxes_h(Tensor[N, 4])
@@ -353,7 +364,8 @@ class InteractionHead(nn.Module):
             results(list[dict]): During evaluation, return dicts of detected interacitons
                 "boxes_h": Tensor[M, 4]
                 "boxes_o": Tensor[M, 4]
-                "scores": Tesnor[M, K]
+                "labels": list(Tensor)
+                "scores": list(Tensor)
         """
         if self.training:
             assert targets is not None, "Targets should be passed during training"
