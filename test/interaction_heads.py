@@ -60,7 +60,8 @@ def test(args):
     if args.mode == 'train':
         print(results['interaction_loss'])
     else:
-        print(results[0]['scores'])
+        for label in results[0]['labels']:
+            print(label.tolist())
 
 if __name__ == '__main__':
 
