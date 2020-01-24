@@ -67,18 +67,38 @@ class TestSinkhornKnopp(unittest.TestCase):
         self.assertTrue(torch.all((x2.sum(0) - 1).abs() < m.tolerance))
         self.assertTrue(torch.all((x2.sum(1) - 1).abs() < m.tolerance))
 
-    def test_warnings(self):
+    def test_nonsquare_matrices(self):
         m = SinkhornKnoppNorm()
-        with warnings.catch_warnings(record=True) as w:
-            x = m(torch.cat([
-                torch.rand(5, 5),
-                torch.zeros(5, 1)
-            ], 1))
-            for item in w:
-                self.assertEqual(item.category, UserWarning)
-
-        self.assertTrue(torch.all((x.sum(0)[:-1] - 1).abs() < m.tolerance))
+        x = m(torch.rand(100, 1000) * 100)
+        self.assertTrue(torch.all((x.sum(0) - 0.1).abs() < m.tolerance))
         self.assertTrue(torch.all((x.sum(1) - 1).abs() < m.tolerance))
+
+        x = m(torch.rand(3000, 150) * 50)
+        self.assertTrue(torch.all((x.sum(0) - 1).abs() < m.tolerance))
+        self.assertTrue(torch.all((x.sum(1) - 0.05).abs() < m.tolerance))
+
+    def test_zero_rows_and_cols(self):
+        m = SinkhornKnoppNorm()
+        x = torch.rand(30, 30)
+        r_idx = [0, 15, 16]; c_idx = [2, 9, 28]
+        x[r_idx, :] = 0; x[:, c_idx] = 0
+        x = m(x)
+        self.assertTrue(x.sum() / 30 - 1 < m.tolerance)
+        all_idx = list(range(30))
+        r_keep = [i for i in all_idx if i not in r_idx]
+        c_keep = [i for i in all_idx if i not in c_idx]
+        self.assertTrue(torch.all(
+            (x.sum(0)[c_keep] - 1).abs() < m.tolerance))
+        self.assertTrue(torch.all(
+            (x.sum(1)[r_keep] - 1).abs() < m.tolerance))
+
+        x = torch.rand(8, 13)
+        # The matrix is essentially 6x11
+        x[:2, :] = 0; x[:, :2] = 0
+        x = m(x)
+        self.assertTrue(x.sum() / 6 - 1 < m.tolerance)
+        self.assertTrue(torch.all((x.sum(0)[2:] - 6/11).abs() < m.tolerance))
+        self.assertTrue(torch.all((x.sum(1)[2:] - 1).abs() < m.tolerance))
 
 if __name__ == '__main__':
     unittest.main()
