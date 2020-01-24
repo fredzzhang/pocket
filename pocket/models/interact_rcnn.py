@@ -14,6 +14,7 @@ from torchvision.ops._utils import _cat
 from torchvision.models.detection import transform
 
 from .faster_rcnn import fasterrcnn_resnet_fpn
+from ..ops import sinkhorn_knopp_norm2d
 from ..ops import SimpleBoxPairPool, MaskedBoxPairPool
 
 class InteractionHead(nn.Module):
@@ -323,10 +324,35 @@ class InteractionHead(nn.Module):
 
         return torch.nn.functional.binary_cross_entropy(interaction_scores, labels)
 
+    def sinkhorn_knopp_normalisation(self, boxes_h, boxes_o, scores):
+        """
+        Arguments:
+            boxes_h(Tensor[M, 4])
+            boxes_o(Tensor[M, 4])
+            scores(Tensor[M, C])
+        Returns:
+            Tensor[M, C]
+        """
+        unique_h, h_intra_idx = boxes_h.unique(dim=0, return_inverse=True)
+        unique_o, o_intra_idx = boxes_o.unique(dim=0, return_inverse=True)
+
+        scores_ = torch.zeros(
+            len(unique_h), len(unique_o), scores.shape[-1],
+            device=scores.device, dtype=scores.dtype
+        )
+        scores_[h_intra_idx, o_intra_idx, :] = scores
+        del scores
+
+        for i in range(len(scores_.shape[-1])):
+            scores_[:, :, i] = sinkhorn_knopp_norm2d(scores_[:, :, i])
+
+        return scores_[h_intra_idx, o_intra_idx, :]
+
     def postprocess(self, class_logits, prior_scores, boxes_h, boxes_o):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
         interaction_scores = (_cat(prior_scores)
                 * torch.sigmoid(class_logits)).split(num_boxes)
+        interaction_scores = self.sinkhorn_knopp_normalisation(interaction_scores)
 
         results = []
         for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
