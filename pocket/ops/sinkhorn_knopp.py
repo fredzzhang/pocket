@@ -44,7 +44,7 @@ def sinkhorn_knopp_norm2d(x, max_iter=1e3, tolerance=1e-3, eps=1e-6):
         dtype=torch.float32)
 
     assert torch.all(x >= 0), "Given matrix contains negative entries"
-    assert x.ndim == 2, "The dimensionality of given matrix is not 2"
+    assert len(x.shape) == 2, "The dimensionality of given matrix is not 2"
 
     c_sum = x.sum(0)
     r_sum = x.sum(1)
