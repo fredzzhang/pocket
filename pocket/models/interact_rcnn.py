@@ -343,7 +343,7 @@ class InteractionHead(nn.Module):
         scores_[h_intra_idx, o_intra_idx, :] = scores
         del scores
 
-        for i in range(len(scores_.shape[-1])):
+        for i in range(scores_.shape[-1]):
             scores_[:, :, i] = sinkhorn_knopp_norm2d(scores_[:, :, i])
 
         return scores_[h_intra_idx, o_intra_idx, :]
@@ -352,10 +352,11 @@ class InteractionHead(nn.Module):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
         interaction_scores = (_cat(prior_scores)
                 * torch.sigmoid(class_logits)).split(num_boxes)
-        interaction_scores = self.sinkhorn_knopp_normalisation(interaction_scores)
 
         results = []
         for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
+            scores = self.sinkhorn_knopp_normalisation(
+                b_h, b_o, scores)
 
             keep_cls = [s.nonzero().squeeze(1) for s in scores]
             keep_box = torch.as_tensor([bool(len(pred_cls)) for pred_cls in keep_cls],
