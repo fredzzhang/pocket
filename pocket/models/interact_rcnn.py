@@ -344,7 +344,7 @@ class InteractionHead(nn.Module):
         del scores
 
         for i in range(scores_.shape[-1]):
-            scores_[:, :, i] = sinkhorn_knopp_norm2d(scores_[:, :, i])
+            scores_[:, :, i], _ = sinkhorn_knopp_norm2d(scores_[:, :, i])
 
         return scores_[h_intra_idx, o_intra_idx, :]
 
@@ -355,7 +355,7 @@ class InteractionHead(nn.Module):
 
         results = []
         for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
-            scores = self.sinkhorn_knopp_normalisation(
+            scores *= self.sinkhorn_knopp_normalisation(
                 b_h, b_o, scores)
 
             keep_cls = [s.nonzero().squeeze(1) for s in scores]
