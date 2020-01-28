@@ -141,7 +141,7 @@ class HICODet(ImageDataset):
         Returns:
             list[str]
         """
-        return self._objects
+        return self._objects.copy()
 
     @property
     def verbs(self):
@@ -151,7 +151,7 @@ class HICODet(ImageDataset):
         Returns:
             list[str]
         """
-        return self._verbs
+        return self._verbs.copy()
 
     @property
     def interactions(self):
