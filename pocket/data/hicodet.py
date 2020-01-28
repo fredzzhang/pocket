@@ -32,13 +32,10 @@ class HICODet(ImageDataset):
         self.num_object_cls = 80
         self.num_interation_cls = 600
         self.num_action_cls = 117
-
-        # Load annotations
-        self._idx, self._obj_to_int, self._num_anno, \
-            self._anno, self._filenames, self._class_corr, self._empty_idx = \
-            self.load_annotation_and_metadata(anno)
         self._annoFile = annoFile
 
+        # Load annotations
+        self.load_annotation_and_metadata(anno)
 
     def __len__(self):
         """Return the number of images"""
@@ -136,6 +133,38 @@ class HICODet(ImageDataset):
             num_anno[corr[2]] += self._num_anno[corr[0]]
         return num_anno
 
+    @property
+    def objects(self):
+        """
+        Object names 
+
+        Returns:
+            list[str]
+        """
+        return self._objects
+
+    @property
+    def verbs(self):
+        """
+        Verbs (action names)
+
+        Returns:
+            list[str]
+        """
+        return self._verbs
+
+    @property
+    def interactions(self):
+        """
+        Combination of verbs and objects
+
+        Returns:
+            list[str]
+        """
+        return [self._verbs[j] + ' ' + self.objects[i] 
+            for _, i, j in self._class_corr]
+
+
     def filename(self, idx):
         """Return the image file name"""
         return self._filenames[self._idx[idx]]
@@ -144,20 +173,13 @@ class HICODet(ImageDataset):
         """
         Arguments:
             f(dict): Dictionary loaded from {annoFile}.json
-
-        Returns:
-            list[int]: Indices of images with valid interaction instances
-            list[dict]: Annotations including bounding box pair coordinates and class index
-            list[str]: File names for images
-            list[list]: Class index correspondence
-            list[int]: Indices of images without valid interation instances
         """
         idx = list(range(len(f['filenames'])))
         for empty_idx in f['empty']:
             idx.remove(empty_idx)
         
         obj_to_int = [[] for _ in range(self.num_object_cls)]
-        for corr in f['class']:
+        for corr in f['correspondence']:
             obj_to_int[corr[1]].append(corr[0])
 
         num_anno = [0 for _ in range(self.num_interation_cls)]
@@ -165,6 +187,13 @@ class HICODet(ImageDataset):
             for hoi in anno['hoi']:
                 num_anno[hoi] += 1
 
-        return idx, obj_to_int, num_anno, \
-            f['annotation'], f['filenames'], f['class'], f['empty']
-        
+        self._idx = idx
+        self._obj_to_int = obj_to_int
+        self._num_anno = num_anno
+
+        self._anno = f['annotation']
+        self._filenames = f['filenames']
+        self._class_corr = f['correspondence']
+        self._empty_idx = f['empty']
+        self._objects = f['objects']
+        self._verbs = f['verbs']
