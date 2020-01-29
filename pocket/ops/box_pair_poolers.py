@@ -10,7 +10,7 @@ Australian Centre for Robotic Vision
 """
 Acknowledgement:
 
-Source code in this module is largely modified from
+Source code in this module is partially modified from
 https://github.com/pytorch/vision/blob/master/torchvision/ops/poolers.py
 
 See below for detailed license
@@ -214,7 +214,9 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         reserve(int): Memory (MB) overhead preserved for miscellaneous variables. The memory
             limit will be subtracted by this value. Default: 128
     """
-    def __init__(self, output_size, spatial_scale, sampling_ratio, mem_limit=8, reserve=128):
+    def __init__(self, 
+            output_size, spatial_scale, sampling_ratio,
+            mem_limit=8, reserve=128):
         super().__init__(output_size, spatial_scale, sampling_ratio)
         self.mem_limit = mem_limit
         self.reserve = reserve
@@ -230,6 +232,8 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         reprstr += repr(self.sampling_ratio)
         reprstr += ', mem_limit='
         reprstr += repr(self.mem_limit)
+        reprstr += ', reserve='
+        reprstr += repr(self.reserve)
         reprstr += ')'
         return reprstr
 
