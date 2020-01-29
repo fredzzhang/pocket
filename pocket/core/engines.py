@@ -147,6 +147,7 @@ class LearningEngine(State):
 
     def __call__(self, n):
         # Train for a specified number of epochs
+        self._on_start()
         for _ in range(n):
             self._on_start_epoch()
             timestamp = time.time()
@@ -165,6 +166,13 @@ class LearningEngine(State):
                 timestamp = time.time()
                 
             self._on_end_epoch()
+        self._on_end()
+
+    def _on_start(self):
+        pass
+
+    def _on_end(self):
+        pass
 
     def _on_start_epoch(self):
         self._state.epoch += 1
