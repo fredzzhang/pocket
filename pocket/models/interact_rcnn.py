@@ -560,7 +560,8 @@ class TrainableHead(nn.Module):
         images, detections, targets = self.preprocess(
                 images, detections, targets)
 
-        features = self.backbone(images.tensors)
+        with torch.no_grad():
+            features = self.backbone(images.tensors)
         # Remove the last max pooled features in fpn
         features = [v for v in features.values()]
         features = features[:-1]
