@@ -52,6 +52,8 @@ from torchvision.ops.poolers import LevelMapper
 from torchvision.ops.boxes import clip_boxes_to_image
 from torchvision.ops._utils import convert_boxes_to_roi_format
 
+from multiprocessing import Pool
+
 from .masked_roi_align import masked_roi_align
 
 __all__ = [
@@ -221,6 +223,18 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         self.mem_limit = mem_limit
         self.reserve = reserve
 
+        self._pool = Pool()
+
+    # def __del__(self):
+    #     """Clean the process pool"""
+    #     self._pool.close()
+
+    def __getstate__(self):
+        """Remove process pool, which cannot be pickled"""
+        dict_ = self.__dict__.copy()
+        del dict_['_pool']
+        return dict_
+
     def __repr__(self):
         """Return the executable string representation"""
         reprstr = self.__class__.__name__ + '('
@@ -237,15 +251,15 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         reprstr += ')'
         return reprstr
 
-    def fill_masks_for_boxes(self, mask, box):
+    def create_mask_for_box(self, shape, box):
         """
-        Fill an empty mask based on scaled box coordinates
+        Create a mask based on scaled box coordinates
 
         Arguments:
-            mask(Tensor[C, H, W])
+            shape(tuple[H, W]): 
             box(Tensor[4]): Box coordinates aligned with mask scale
         Returns:
-            mask(Tensor[C, H, W])
+            mask(Tensor[H, W])
 
         NOTE: This following crucial to understand
 
@@ -259,31 +273,38 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
             [x2.ceil()-1, y2.ceil()-1], NOT [x2.floor(), y2.floor()]
         """
 
-        mask = mask.clone()
+        mask = torch.zeros(shape)
         # Expand the scaled bounding box to integer coordinates
-        mask[:,
+        mask[
             box[1].floor().long(): box[3].ceil().long(),
             box[0].floor().long(): box[2].ceil().long(),
         ] = 1
         # Now attenuate the mask values at the expanded pixels
-        mask[:,
+        mask[
             box[1].floor().long(): box[3].ceil().long(),
             box[0].floor().long(),
         ] *= (1 + box[0].floor() - box[0])
-        mask[:,
+        mask[
             box[1].floor().long(): box[3].ceil().long(),
             box[2].ceil().long() - 1,
         ] *= (1 + box[2] - box[2].ceil())
-        mask[:,
+        mask[
             box[1].floor().long(),
             box[0].floor().long(): box[2].ceil().long(),
         ] *= (1 + box[1].floor() - box[1])
-        mask[:,
+        mask[
             box[3].ceil().long() - 1,
             box[0].floor().long(): box[2].ceil().long(),
         ] *= (1 + box[3] - box[3].ceil())
 
         return mask
+
+    def create_mask_for_box_pair(self, tuple_):
+        shape, box_1, box_2 = tuple_
+        return torch.max(
+            self.create_mask_for_box(shape, box_1),
+            self.create_mask_for_box(shape, box_2)
+        )
 
     def construct_masks_for_box_pairs(self, features, level, boxes_1, boxes_2):
         """
@@ -307,15 +328,19 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         boxes_1[:, 1:] *= scale
         boxes_2[:, 1:] *= scale
 
-        feature_size = features.shape[2:]
+        spatial_size = shape[2:]
 
-        boxes_1[:, 1:] = clip_boxes_to_image(boxes_1[:, 1:], feature_size)
-        boxes_2[:, 1:] = clip_boxes_to_image(boxes_2[:, 1:], feature_size)
+        boxes_1[:, 1:] = clip_boxes_to_image(boxes_1[:, 1:], spatial_size)
+        boxes_2[:, 1:] = clip_boxes_to_image(boxes_2[:, 1:], spatial_size)
 
-        for idx, mask in enumerate(masks):
-            mask_h = self.fill_masks_for_boxes(mask, boxes_1[idx, 1:])
-            mask_o = self.fill_masks_for_boxes(mask, boxes_2[idx, 1:])
-            masks[idx] = torch.max(mask_h, mask_o)
+        for idx, mask in enumerate(self._pool.map(
+            func=self.create_mask_for_box_pair,
+            iterable=zip(
+                [spatial_size]*len(boxes_1), 
+                boxes_1[:, 1:], 
+                boxes_2[:, 1:]),
+        )):
+            masks[idx, 0] = mask.to(dtype=dtype, device=device)
 
         return masks
 
