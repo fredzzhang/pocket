@@ -1,2 +1,14 @@
 .deprecated
+
+# Python3
 __pycache__
+
+# C++ extension
+build
+
+# MacOS
+.DS_Store
+
+# Generated cache
+examples/checkpoints
+examples/data
