@@ -35,7 +35,7 @@ torch::Tensor GenerateMasks(torch::Tensor boxes, uint h, uint w){
           (ceil(x2-1), ceil(y2-1)) NOT (floor(x2), floor(y2))
     */
     float x1_f = floor(x1); float y1_f = floor(y1);
-    float x2_c = ceil(x2-1); float y2_c = ceil(y2-1);
+    float x2_c = ceil(x2); float y2_c = ceil(y2);
 
     masks[i].slice(0, (int)y1_f, (int)y2_c).slice(1, (int)x1_f, (int)x2_c) = 1;
 
