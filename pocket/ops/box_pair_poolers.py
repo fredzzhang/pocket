@@ -52,8 +52,6 @@ from torchvision.ops.poolers import LevelMapper
 from torchvision.ops.boxes import clip_boxes_to_image
 from torchvision.ops._utils import convert_boxes_to_roi_format
 
-from multiprocessing import Pool
-
 from .masked_roi_align import masked_roi_align
 
 __all__ = [
@@ -223,18 +221,6 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         self.mem_limit = mem_limit
         self.reserve = reserve
 
-        self._pool = Pool()
-
-    # def __del__(self):
-    #     """Clean the process pool"""
-    #     self._pool.close()
-
-    def __getstate__(self):
-        """Remove process pool, which cannot be pickled"""
-        dict_ = self.__dict__.copy()
-        del dict_['_pool']
-        return dict_
-
     def __repr__(self):
         """Return the executable string representation"""
         reprstr = self.__class__.__name__ + '('
@@ -306,7 +292,7 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
             self.create_mask_for_box(shape, box_2)
         )
 
-    def construct_masks_for_box_pairs(self, features, level, boxes_1, boxes_2):
+    def construct_masks(self, features, level, boxes_1, boxes_2):
         """
         Arguments:
             features(Tensor[N, C, H, W])
@@ -321,8 +307,8 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         # Reduce the number of channels to one since masks are identical across
         # channels. The single channel will be broacast automatically
         shape[1] = 1
-        masks = torch.zeros(shape,
-            dtype=dtype, device=device)[boxes_1[:, 0].long()]
+        masks = torch.zeros(shape, dtype=dtype)[boxes_1[:, 0].long()]
+
         scale = self.spatial_scale[level]
 
         boxes_1[:, 1:] *= scale
@@ -333,14 +319,12 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         boxes_1[:, 1:] = clip_boxes_to_image(boxes_1[:, 1:], spatial_size)
         boxes_2[:, 1:] = clip_boxes_to_image(boxes_2[:, 1:], spatial_size)
 
-        for idx, mask in enumerate(self._pool.map(
-            func=self.create_mask_for_box_pair,
-            iterable=zip(
-                [spatial_size]*len(boxes_1), 
-                boxes_1[:, 1:], 
-                boxes_2[:, 1:]),
-        )):
-            masks[idx, 0] = mask.to(dtype=dtype, device=device)
+        boxes_1 = boxes_1.cpu()
+        boxes_2 = boxes_2.cpu()
+        for idx, mask in enumerate(masks):
+            mask[0] = self.create_mask_for_box_pair((spatial_size,
+                    boxes_1[idx, 1:], boxes_2[idx, 1:]))
+        masks = masks.to(device=device)
 
         return masks
 
@@ -361,9 +345,9 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         box_pair_union = self.compute_box_pair_union(boxes_1, boxes_2)
 
         if self.num_levels == 1:
-            box_pair_masks = self.construct_masks_for_box_pairs(
+            box_pair_masks = self.construct_masks(
                 features[0], 0,
-                boxes_1, boxes_2
+                boxes_1.clone(), boxes_2.clone()
             )
             return masked_roi_align(
                 features[0], box_pair_union,
@@ -389,10 +373,11 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
                 zip(features, self.spatial_scale)):
             idx_in_level = torch.nonzero(levels == level).squeeze(1)
             rois_per_level = box_pair_union[idx_in_level]
-            masks_per_level = self.construct_masks_for_box_pairs(
+
+            masks_per_level = self.construct_masks(
                 per_level_feature, level,
-                boxes_1[idx_in_level],
-                boxes_2[idx_in_level]
+                boxes_1[idx_in_level].clone(),
+                boxes_2[idx_in_level].clone()
             )
 
             result[idx_in_level] = masked_roi_align(
@@ -403,6 +388,5 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
                 mem_limit=self.mem_limit,
                 reserve=self.reserve
             )
-
         return result
 
