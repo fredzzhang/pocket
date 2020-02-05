@@ -53,6 +53,7 @@ from torchvision.ops.boxes import clip_boxes_to_image
 from torchvision.ops._utils import convert_boxes_to_roi_format
 
 from .masked_roi_align import masked_roi_align
+from ..cpp import generate_masks
 
 __all__ = [
     'SimpleBoxPairPool',
@@ -237,62 +238,7 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         reprstr += ')'
         return reprstr
 
-    def create_mask_for_box(self, shape, box):
-        """
-        Create a mask based on scaled box coordinates
-
-        Arguments:
-            shape(tuple[H, W]): 
-            box(Tensor[4]): Box coordinates aligned with mask scale
-        Returns:
-            mask(Tensor[H, W])
-
-        NOTE: This following crucial to understand
-
-        1. For a pixel, the coordinates of the point at its top left corner
-            give its index
-        2. For a point with non-integer coordinates (x,y), the index of the
-            pixel that contains the point is always (x.floor(), y.floor())
-        3. For a bounding box defined as (x1, y1, x2, y2), the pixel that contains
-            the top left corner can be indexed by [x1.floor(), y1.floor()], but 
-            the pixel that contains the bottom right coner must be indexed by
-            [x2.ceil()-1, y2.ceil()-1], NOT [x2.floor(), y2.floor()]
-        """
-
-        mask = torch.zeros(shape)
-        # Expand the scaled bounding box to integer coordinates
-        mask[
-            box[1].floor().long(): box[3].ceil().long(),
-            box[0].floor().long(): box[2].ceil().long(),
-        ] = 1
-        # Now attenuate the mask values at the expanded pixels
-        mask[
-            box[1].floor().long(): box[3].ceil().long(),
-            box[0].floor().long(),
-        ] *= (1 + box[0].floor() - box[0])
-        mask[
-            box[1].floor().long(): box[3].ceil().long(),
-            box[2].ceil().long() - 1,
-        ] *= (1 + box[2] - box[2].ceil())
-        mask[
-            box[1].floor().long(),
-            box[0].floor().long(): box[2].ceil().long(),
-        ] *= (1 + box[1].floor() - box[1])
-        mask[
-            box[3].ceil().long() - 1,
-            box[0].floor().long(): box[2].ceil().long(),
-        ] *= (1 + box[3] - box[3].ceil())
-
-        return mask
-
-    def create_mask_for_box_pair(self, tuple_):
-        shape, box_1, box_2 = tuple_
-        return torch.max(
-            self.create_mask_for_box(shape, box_1),
-            self.create_mask_for_box(shape, box_2)
-        )
-
-    def construct_masks(self, features, level, boxes_1, boxes_2):
+    def construct_masks_for_box_pairs(self, features, level, boxes_1, boxes_2):
         """
         Arguments:
             features(Tensor[N, C, H, W])
@@ -303,11 +249,7 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         Returns:
             masks(Tensor[K, C, H, W])
         """
-        dtype, device, shape = features.dtype, features.device, list(features.shape)
-        # Reduce the number of channels to one since masks are identical across
-        # channels. The single channel will be broacast automatically
-        shape[1] = 1
-        masks = torch.zeros(shape, dtype=dtype)[boxes_1[:, 0].long()]
+        dtype, device, shape = features.dtype, features.device, features.shape
 
         scale = self.spatial_scale[level]
 
@@ -321,10 +263,13 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
 
         boxes_1 = boxes_1.cpu()
         boxes_2 = boxes_2.cpu()
-        for idx, mask in enumerate(masks):
-            mask[0] = self.create_mask_for_box_pair((spatial_size,
-                    boxes_1[idx, 1:], boxes_2[idx, 1:]))
-        masks = masks.to(device=device)
+
+        masks = torch.max(
+            generate_masks(boxes_1[:, 1:], *spatial_size),
+            generate_masks(boxes_2[:, 1:], *spatial_size)
+        )
+
+        masks = masks[:, None, :, :].to(device=device)
 
         return masks
 
@@ -345,7 +290,7 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         box_pair_union = self.compute_box_pair_union(boxes_1, boxes_2)
 
         if self.num_levels == 1:
-            box_pair_masks = self.construct_masks(
+            box_pair_masks = self.construct_masks_for_box_pairs(
                 features[0], 0,
                 boxes_1.clone(), boxes_2.clone()
             )
@@ -374,7 +319,7 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
             idx_in_level = torch.nonzero(levels == level).squeeze(1)
             rois_per_level = box_pair_union[idx_in_level]
 
-            masks_per_level = self.construct_masks(
+            masks_per_level = self.construct_masks_for_box_pairs(
                 per_level_feature, level,
                 boxes_1[idx_in_level].clone(),
                 boxes_2[idx_in_level].clone()
