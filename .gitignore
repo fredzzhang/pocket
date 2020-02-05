@@ -5,6 +5,7 @@ __pycache__
 
 # C++ extension
 build
+*.so
 
 # MacOS
 .DS_Store
