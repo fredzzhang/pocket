@@ -355,8 +355,6 @@ class InteractionHead(nn.Module):
 
         results = []
         for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
-            scores *= self.sinkhorn_knopp_normalisation(
-                b_h, b_o, scores)
 
             keep_cls = [s.nonzero().squeeze(1) for s in scores]
             keep_box = torch.as_tensor([bool(len(pred_cls)) for pred_cls in keep_cls],
