@@ -1,3 +1,12 @@
+/*
+ * Generate binary masks based on bounding box coordinates
+ *
+ * Fred Zhang <frederic.zhang@anu.edu.au>
+ *
+ * The Australian National University
+ * Australian Centre for Robotic Vision
+*/
+
 #include <torch/extension.h>
 #include <math.h>
 
@@ -8,7 +17,7 @@ torch::Tensor GenerateMasks(torch::Tensor boxes, uint h, uint w){
   // Create empty masks
   torch::Tensor masks = torch::zeros({numBoxes, h, w});
 
-  for (i = 0; i < numBoxes; i++) {
+  for (uint i = 0; i < numBoxes; i++) {
     float x1 = boxes_acc[i][0]; float y1 = boxes_acc[i][1];
     float x2 = boxes_acc[i][2]; float y2 = boxes_acc[i][3];
     /*
@@ -25,29 +34,24 @@ torch::Tensor GenerateMasks(torch::Tensor boxes, uint h, uint w){
        indexed as
           (ceil(x2-1), ceil(y2-1)) NOT (floor(x2), floor(y2))
     */
-    float x1_idx = floor(x1); float y1_idx = floor(y1);
-    float x2_idx = ceil(x2-1); float y2_idx = ceil(y2-2);
-    for (j = (int) y1_idx, j <= (int) y2_idx; j++) {
-      for (k = (int) x1_idx, k <= (int) x2_idx; k++) {
-        torch::Tensor val = torch::ones(1);
-        if (j == y1_idx) {
-          val *= (1 + x1_idx - x1);
-        } else if (j == y2_idx) {
-          val *= (x2 - x2_idx);
-        }
-        if (k == x1_idx) {
-          val *= (1 + y1_idx - y1);
-        } else if (k == x2_idx) {
-          val *= (y1 - y1_idx);
-        }
-        masks[i][j][k] = val;
-      }
-    }
+    float x1_f = floor(x1); float y1_f = floor(y1);
+    float x2_c = ceil(x2-1); float y2_c = ceil(y2-1);
+
+    masks[i].slice(0, (int)y1_f, (int)y2_c).slice(1, (int)x1_f, (int)x2_c) = 1;
+
+    masks[i][(int)y1_f].slice(0, (int)x1_f, (int)x2_c) *= 
+        (1 + y1_f - y1);
+    masks[i][(int)y2_c - 1].slice(0, (int)x1_f, (int)x2_c) *=
+        (1 + y2 - y2_c);
+    masks[i].select(1, (int)x1_f).slice(0, (int)y1_f, (int)y2_c) *=
+        (1 + x1_f - x1);
+    masks[i].select(1, (int)x2_c - 1).slice(0, (int)y1_f, (int)y2_c) *=
+        (1 + x2 - x2_c);
+
   }
   return masks;
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
-  m.doc() = "Generate binary masks for a bounding box";
   m.def("generate_masks", &GenerateMasks, "Binary mask generation");
 }
