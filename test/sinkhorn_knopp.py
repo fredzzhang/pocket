@@ -9,7 +9,6 @@ Australian Center for Robotic Vision
 
 import torch
 import unittest
-import warnings
 
 from pocket.ops import SinkhornKnoppNorm2d
 
