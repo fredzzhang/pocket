@@ -75,23 +75,19 @@ def masked_roi_align(features, boxes, masks, output_size,
         start_idx = idx * clone_limit
         end_idx = min(start_idx + clone_limit, num_boxes)
 
-        per_instance_features = features[
-            boxes[start_idx: end_idx, 0].long()]
+        batch_idx =  boxes[start_idx: end_idx, 0].long()
         # Modify the batch index to align with feature map clones
         boxes[start_idx: end_idx, 0] = torch.arange(end_idx - start_idx,
             device=boxes.device, dtype=boxes.dtype)
         output.append(
             _RoIAlignFunction.apply(
-                per_instance_features.mul_(masks[start_idx: end_idx]),
+                features[batch_idx].mul_(masks[start_idx: end_idx]),
                 boxes[start_idx: end_idx, :],
                 output_size,
                 spatial_scale,
                 sampling_ratio
             )
         )
-        # Release memory occupied by cloned feature maps
-        del per_instance_features
-        torch.cuda.empty_cache()
 
     output = torch.cat(output, 0)
     assert output.shape == output_shape, \
