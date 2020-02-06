@@ -6,7 +6,7 @@ Fred Zhang <frederic.zhang@anu.edu.au>
 The Australian National University
 Australian Centre for Robotic Vision
 """
-
+import time
 import os
 import json
 import torch
@@ -16,6 +16,7 @@ import pocket
 from pocket.data import HICODet
 from pocket.models import TrainableHead
 
+torch.manual_seed(0)
 torch.set_printoptions(threshold=1000)
 
 def test(args):
@@ -52,10 +53,13 @@ def test(args):
     if use_gpu:
         image, detection, target = pocket.ops.relocate_to_cuda(
             (image, detection, target), 0)
+
+    t = time.time()
     with torch.no_grad():
         results = interaction_head(
             [image], [detection], targets=[target]
         )
+    print("Execution time: ", time.time() - t)
 
     if args.mode == 'train':
         print(results['interaction_loss'])
