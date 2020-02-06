@@ -10,6 +10,10 @@ Australian Centre for Robotic Vision
 import torch
 from ..cpp import generate_masks
 
+__all__ = [
+    'generate_binary_masks'
+]
+
 def generate_binary_masks(boxes, h, w):
     """
     Generate binary masks based on bounding box coordinates. Pixels completely
