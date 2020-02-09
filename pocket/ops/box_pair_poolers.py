@@ -253,20 +253,17 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
 
         scale = self.spatial_scale[level]
 
-        boxes_1[:, 1:] *= scale
-        boxes_2[:, 1:] *= scale
+        boxes_1 = boxes_1[:, 1:] * scale
+        boxes_2 = boxes_2[:, 1:] * scale
 
         spatial_size = shape[2:]
 
-        boxes_1[:, 1:] = clip_boxes_to_image(boxes_1[:, 1:], spatial_size)
-        boxes_2[:, 1:] = clip_boxes_to_image(boxes_2[:, 1:], spatial_size)
-
-        boxes_1 = boxes_1.cpu()
-        boxes_2 = boxes_2.cpu()
+        boxes_1 = clip_boxes_to_image(boxes_1, spatial_size).cpu()
+        boxes_2 = clip_boxes_to_image(boxes_2, spatial_size).cpu()
 
         masks = torch.max(
-            generate_binary_masks(boxes_1[:, 1:], *spatial_size),
-            generate_binary_masks(boxes_2[:, 1:], *spatial_size)
+            generate_binary_masks(boxes_1, *spatial_size),
+            generate_binary_masks(boxes_2, *spatial_size)
         )
 
         masks = masks[:, None, :, :].to(device=device)
