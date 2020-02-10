@@ -16,33 +16,34 @@ class TestMaskGeneration(unittest.TestCase):
 
     def test_integer_coords(self):
         b = torch.tensor([
-            [0, 0, 50, 50],
-            [25, 25, 75, 75]
+            [0., 0., 50., 50.],
+            [25., 25., 75., 75.]
         ])
         m = generate_binary_masks(b, 100, 100)
         self.assertEqual(m.sum(), 50 ** 2 * 2)
         self.assertEqual(m[0][:50, :50].sum(), 50 ** 2)
         self.assertEqual(m[1][25:75, 25:75].sum(), 50 ** 2)
 
-    def test_random_squares(self):
-        for _ in range(20):
-            b = torch.rand(50, 4) * 120; b[:, 2:] += b[:, :2]
-            m = generate_binary_masks(b, 240, 240)
-            area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
-            self.assertEqual(m.sum(), area.sum())
+    def test_square_masks(self):
+        b = torch.tensor([
+            [3.2, 8.1, 61.2, 91.5],
+            [0., 0., 12.5, 100.3],
+            [45.1, 2.8, 120., 120.],
+            [31.6, 71.2, 52.9, 101.4]
+        ])
+        m = generate_binary_masks(b, 120, 120)
+        area = (b[:, 3] - b[:, 1]) * (b[:, 2] - b[:, 0])
+        self.assertEqual(m.sum(), area.sum())
 
-    def test_random_rectangles(self):
-        for _ in range(20):
-            h, w = torch.randint(50, 150, (2,))
-            x1, y1, w_, h_ = torch.rand(100, 4).unbind(1)
-            x1 *= w; y1 *= h
-            w_ *= (w-x1); h_ *= (h-y1)
-            x2 = x1 + w_; y2 = y1 + h_
-            b = torch.stack([x1, y1, x2, y2], 1)
-
-            m = generate_binary_masks(b, h, w)
-            area = h_ * w_
-            self.assertEqual(m.sum(), area.sum())
+    def test_rectangular_masks(self):
+        b = torch.tensor([
+            [31.52, 192.37, 8.15, 100.2],
+            [0.6, 0.2, 319.8, 158.9],
+            [39.19, 81.25, 145.9, 141.85]
+        ])
+        m = generate_binary_masks(b, 160, 310)
+        area = (b[:, 3] - b[:, 1]) * (b[:, 2] - b[:, 0])
+        self.assertEqual(m.sum(), area.sum())
 
 if __name__ == '__main__':
     unittest.main()
