@@ -13,6 +13,8 @@ from torch import nn
 from torchvision.ops._utils import _cat
 from torchvision.models.detection import transform
 
+from collections import OrderedDict
+
 from .faster_rcnn import fasterrcnn_resnet_fpn
 from ..ops import sinkhorn_knopp_norm2d
 from ..ops import SimpleBoxPairPool, MaskedBoxPairPool
@@ -493,10 +495,9 @@ class TrainableHead(nn.Module):
             # Transformation parameters
             min_size=800, max_size=1333, 
             image_mean=None, image_std=None,
-            # Pooler parameters
-            output_size=7, spatial_scale=None, sampling_ratio=2, 
             # Parameters for masked pooling
             masked_pool=True, mem_limit=8, reserve=128,
+            output_size=7, spatial_scale=None, sampling_ratio=2, 
             # MLP parameters
             representation_size=1024, num_classes=600,
             **kwargs):
@@ -579,41 +580,51 @@ class TrainableHead(nn.Module):
     def load_state_dict(self, state_dict):
         self.interaction_head.load_state_dict(state_dict)
 
+class TrainableHeadE2E(TrainableHead):
+    """
+    Interaction head that is end-to-end trainable
 
-class InteractRCNN(nn.Module):
-    def __init__(self, backbone, rpn, roi_heads, interaction_heads, transform):
-        super().__init__()
-        self.backbone = backbone
-        self.rpn = rpn
-        self.roi_heads = roi_heads
-        self.interaction_heads = interaction_heads
-        self.transform = transform
+    Arguments:
+
+    """
+    def __init__(self, detector, cls_corr, human_idx, **kwargs):
+        super().__init__(cls_corr, human_idx, **kwargs)
+        # Override the backbone
+        self.backbone = detector.backbone
+        self.rpn = detector.rpn
+        self.roi_heads = detector.roi_heads
 
     def forward(self, images, targets=None):
         """
         Arguments:
-            images (list[Tensor]): images to be processed
-            targets (list[Dict[Tensor]], optional): ground-truth boxes present in the image
+            images(list[Tensor])
+            targets(list[dict])
         """
         if self.training and targets is None:
             raise ValueError("In training mode, targets should be passed")
         original_image_sizes = [img.shape[-2:] for img in images]
         images, targets = self.transform(images, targets)
-        features = self.backbone(images.tensors)
-        proposals, proposal_losses = self.rpn(images, features, targets)
-        detections, detector_losses = self.roi_heads(features, proposals,
-            images.image_sizes, targets)
-        detections, interaction_loss = self.interaction_heads(features, detections,
-            images.image_sizes, targets)    
-        detections = self.transform.postprocess(detections,
+        # Leave the object detector out of computational graph
+        with torch.no_grad():
+            features = self.backbone(images.tensors)
+            if isinstance(features, torch.Tensor):
+                features = OrderedDict([(0, features)])
+            proposals, _ = self.rpn(images, features, targets)
+            detections, _ = self.roi_heads(features, proposals,
+                images.image_sizes, targets)
+
+        # Remove the last max pooled features in fpn
+        features = [v for v in features.values()]
+        features = features[:-1]
+
+        results = self.interaction_head(features, detections, targets)
+
+        if results is None:
+            return results
+        results = self.transform.postprocess(results, 
             images.image_sizes, original_image_sizes)
 
-        losses = {}
-        losses.update(detector_losses)
-        losses.update(proposal_losses)
-        losses.update(interaction_loss)
+        return results
 
-        if self.training:
-            return losses
-
-        return detections
+class InteractRCNN(nn.Module):
+    raise NotImplementedError
