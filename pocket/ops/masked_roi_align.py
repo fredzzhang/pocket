@@ -88,6 +88,8 @@ def masked_roi_align(features, boxes, masks, output_size,
                 sampling_ratio
             )
         )
+        # Clean cache
+        torch.cuda.empty_cache()
 
     output = torch.cat(output, 0)
     assert output.shape == output_shape, \
