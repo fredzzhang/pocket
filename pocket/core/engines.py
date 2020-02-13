@@ -152,8 +152,8 @@ class LearningEngine(State):
             self._on_start_epoch()
             timestamp = time.time()
             for batch in self._train_loader:
-                self._state.input = batch[:-1]
-                self._state.target = batch[-1]
+                self._state.inputs = batch[:-1]
+                self._state.targets = batch[-1]
                 self._state.t_data.append(time.time() - timestamp)
 
                 self._on_start_iteration()
@@ -184,17 +184,21 @@ class LearningEngine(State):
 
     def _on_start_iteration(self):
         self._state.iteration += 1
-        self._state.input = relocate_to_device(self._state.input, self._device)
-        self._state.target = relocate_to_device(self._state.target, self._device)
+        self._state.inputs = relocate_to_device(self._state.inputs, self._device)
+        self._state.targets = relocate_to_device(self._state.targets, self._device)
 
     def _on_end_iteration(self):
         if self._verbal and self._state.iteration % self._print_interval == 0:
             self._print_statistics()
+        del self._state.inputs
+        del self._state.targets
+        del self._state.output
+        del self._state.loss
 
     def _on_each_iteration(self):
         self._state.optimizer.zero_grad()
-        self._state.output = self._state.net(*self._state.input)
-        self._state.loss = self._criterion(self._state.output, self._state.target)
+        self._state.output = self._state.net(*self._state.inputs)
+        self._state.loss = self._criterion(self._state.output, self._state.targets)
         self._state.loss.backward()
         self._state.optimizer.step()
 
@@ -370,10 +374,10 @@ class MultiClassClassificationEngine(LearningEngine):
             self._validate()
 
     def _on_end_iteration(self):
-        super()._on_end_iteration()
         pred = torch.argmax(self._state.output, 1)
-        self._state.correct += torch.eq(pred, self._state.target).sum().item()
+        self._state.correct += torch.eq(pred, self._state.targets).sum().item()
         self._state.total += len(pred)
+        super()._on_end_iteration()
 
 class MultiLabelClassificationEngine(LearningEngine):
     r"""
@@ -528,5 +532,5 @@ class MultiLabelClassificationEngine(LearningEngine):
             self._validate()
 
     def _on_end_iteration(self):
+        self._state.ap.append(self._state.output, self._state.targets)
         super()._on_end_iteration()
-        self._state.ap.append(self._state.output, self._state.target)
