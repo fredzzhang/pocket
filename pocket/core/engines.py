@@ -190,10 +190,10 @@ class LearningEngine(State):
     def _on_end_iteration(self):
         if self._verbal and self._state.iteration % self._print_interval == 0:
             self._print_statistics()
-        del self._state.inputs
-        del self._state.targets
-        del self._state.output
-        del self._state.loss
+        del self._state['inputs']
+        del self._state['targets']
+        del self._state['output']
+        del self._state['loss']
 
     def _on_each_iteration(self):
         self._state.optimizer.zero_grad()
