@@ -396,8 +396,7 @@ class InteractionHead(nn.Module):
         """
         if self.training:
             assert targets is not None, "Targets should be passed during training"
-        else:
-            detections = self.filter_detections(detections)
+        detections = self.filter_detections(detections)
 
         box_coords = [detection['boxes'] for detection in detections]
         box_labels = [detection['labels'] for detection in detections]
@@ -566,7 +565,6 @@ class TrainableHead(nn.Module):
         features = features[:-1]
 
         results = self.interaction_head(features, detections, targets)
-
         if results is None:
             return results
 
@@ -585,7 +583,9 @@ class TrainableHeadE2E(TrainableHead):
     Interaction head that is end-to-end trainable
 
     Arguments:
-
+        detector(GeneralizedRCNN)
+        cls_corr(list[Tensor])
+        human_idx(int)
     """
     def __init__(self, detector, cls_corr, human_idx, **kwargs):
         super().__init__(cls_corr, human_idx, **kwargs)
@@ -613,6 +613,8 @@ class TrainableHeadE2E(TrainableHead):
             detections, _ = self.roi_heads(features, proposals,
                 images.image_sizes, targets)
 
+        # TODO: Add label conversion from COCO91 to HICO80
+
         # Remove the last max pooled features in fpn
         features = [v for v in features.values()]
         features = features[:-1]
@@ -627,4 +629,5 @@ class TrainableHeadE2E(TrainableHead):
         return results
 
 class InteractRCNN(nn.Module):
-    raise NotImplementedError
+    def __init__(self):
+        raise NotImplementedError
