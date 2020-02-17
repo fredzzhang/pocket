@@ -8,13 +8,13 @@ Australian Centre for Robotic Vision
 """
 
 import torch
-from ..cpp import generate_masks
+from .. import cpp
 
 __all__ = [
-    'generate_binary_masks'
+    'generate_masks'
 ]
 
-def generate_binary_masks(boxes, h, w):
+def generate_masks(boxes, h, w):
     """
     Generate binary masks based on bounding box coordinates. Pixels completely
     included in a bounding box are assigned values of 1. Those that are partially
@@ -32,6 +32,14 @@ def generate_binary_masks(boxes, h, w):
         raise AssertionError("Provided bounding boxes are not instances of Tensor")
     if not isinstance(h, int) or not isinstance(w, int):
         raise AssertionError("Image width and height should both of integers")
+    
+    if len(boxes):
+        assert torch.all(boxes > 0)
+        assert boxes[:, 2].max() <= w
+        assert boxes[:, 3].max() <= h
+    else:
+        return torch.empty(0, h, w)
 
     boxes = boxes.float()
-    return generate_masks(boxes, h, w)
+
+    return cpp.generate_masks(boxes, h, w)
