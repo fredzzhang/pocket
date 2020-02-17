@@ -53,7 +53,7 @@ from torchvision.ops.boxes import clip_boxes_to_image
 from torchvision.ops._utils import convert_boxes_to_roi_format
 
 from .masked_roi_align import masked_roi_align
-from .masks import generate_binary_masks
+from .masks import generate_masks
 
 __all__ = [
     'SimpleBoxPairPool',
@@ -262,8 +262,8 @@ class MaskedBoxPairPool(SimpleBoxPairPool):
         boxes_2 = clip_boxes_to_image(boxes_2, spatial_size).cpu()
 
         masks = torch.max(
-            generate_binary_masks(boxes_1, *spatial_size),
-            generate_binary_masks(boxes_2, *spatial_size)
+            generate_masks(boxes_1, *spatial_size),
+            generate_masks(boxes_2, *spatial_size)
         )
 
         masks = masks[:, None, :, :].to(device=device)
