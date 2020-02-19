@@ -199,34 +199,55 @@ class InteractionHead(nn.Module):
 
         return paired_idx, boxes, labels, scores
 
-    def subsample(self, labels):
+    def subsample(self, labels, prior_scores):
         """
         Arguments:
             labels(Tensor[N, K]): Binary labels
+            prior_scores(Tensor[N]): Product of object detection scores for
+                each box pair
         Returns:
             Tensor[M]
         """
         is_positive = labels.sum(1)
         pos_idx = torch.nonzero(is_positive).squeeze(1)
         neg_idx = torch.nonzero(is_positive == 0).squeeze(1)
+        easy_neg = neg_idx[torch.nonzero(
+                prior_scores[neg_idx] < self.confident_pair_thresh).squeeze(1)]
+        hard_neg = neg_idx[torch.nonzero(
+                prior_scores[neg_idx] >= self.confident_pair_thresh).squeeze(1)]
 
         # If there is a lack of positives, use all and keep the ratio
         if len(pos_idx) < self.num_box_pairs_per_image * self.positive_fraction:
-            num_neg_to_sample = int(len(pos_idx) 
-                * (1 - self.positive_fraction) / self.positive_fraction)
+            num_easy_neg = int(
+                len(pos_idx) 
+                * (1 - self.positive_fraction - self.hard_negative_fraction) 
+                / self.positive_fraction
+            )
+            num_hard_neg = int(
+                len(pos_idx) 
+                * self.hard_negative_fraction
+                / self.positive_fraction
+            )
             return torch.cat([
                 pos_idx,
-                neg_idx[torch.randperm(len(neg_idx),
-                    device=labels.device)[:num_neg_to_sample]],
+                easy_neg[torch.randperm(len(easy_neg), device=labels.device)[:num_easy_neg]],
+                hard_neg[torch.randperm(len(hard_neg), device=labels.device)[:num_hard_neg]]
             ])
         else:
-            num_pos_to_sample = int(self.num_box_pairs_per_image * self.positive_fraction)
-            num_neg_to_sample = self.num_box_pairs_per_image - num_pos_to_sample
+            num_pos = int(
+                self.num_box_pairs_per_image 
+                * self.positive_fraction
+            )
+            num_easy_neg = int(
+                self.num_box_pairs_per_image
+                * (1 - self.positive_fraction - self.hard_negative_fraction)
+            )
+            num_hard_neg = self.num_box_pairs_per_image - num_pos - num_easy_neg
+
             return torch.cat([
-                pos_idx[torch.randperm(len(pos_idx),
-                    device=labels.device)[:num_pos_to_sample]],
-                neg_idx[torch.randperm(len(neg_idx),
-                    device=labels.device)[:num_neg_to_sample]],
+                pos_idx[torch.randperm(len(pos_idx), device=labels.device)[:num_pos_to_sample]],
+                easy_neg[torch.randperm(len(easy_neg), device=labels.device)[:num_easy_neg]],
+                hard_neg[torch.randperm(len(hard_neg), device=labels.device)[:num_hard_neg]]
             ])
 
     def pair_up_boxes_and_assign_to_targets(self, boxes, labels, scores, targets=None):
@@ -255,7 +276,7 @@ class InteractionHead(nn.Module):
         all_boxes_o = []
         all_labels = []
         all_prior_scores = []
-        for idx, (boxes_in_image, labels_in_image, scores_in_images) in enumerate(
+        for idx, (boxes_in_image, labels_in_image, scores_in_image) in enumerate(
             zip(boxes, labels, scores)
         ):
             # Find detections of human instances
@@ -275,12 +296,12 @@ class InteractionHead(nn.Module):
             # Assign labels to constructed box pairs and perform subsampling
             if self.training:
                 targets_in_image = targets[idx]
-                paired_idx, boxes_in_image, labels_in_image, scores_in_images = \
+                paired_idx, boxes_in_image, labels_in_image, scores_in_image = \
                     self.append_ground_truth_box_pairs(
                         paired_idx,
                         boxes_in_image,
                         labels_in_image,
-                        scores_in_images,
+                        scores_in_image,
                         targets_in_image
                     )
 
@@ -300,7 +321,7 @@ class InteractionHead(nn.Module):
 
                 # Subsample up to a specified number of box pairs 
                 # with fixed positive-negative ratio
-                sampled_idx = self.subsample(hoi_labels)
+                sampled_idx = self.subsample(hoi_labels, scores_in_image[paired_idx].prod(1))
                 paired_idx = paired_idx[sampled_idx].view(-1, 2)
                 boxes_h = boxes_h[sampled_idx].view(-1, 4)
                 boxes_o = boxes_o[sampled_idx].view(-1, 4)
@@ -310,7 +331,7 @@ class InteractionHead(nn.Module):
                 boxes_h = boxes_in_image[paired_idx[:, 0]]
                 boxes_o = boxes_in_image[paired_idx[:, 1]]
             prior_scores = self.map_object_scores_to_interaction_scores(
-                scores_in_images, labels_in_image, paired_idx
+                scores_in_image, labels_in_image, paired_idx
             )
 
             all_boxes_h.append(boxes_h)
