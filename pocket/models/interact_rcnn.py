@@ -37,8 +37,10 @@ class InteractionHead(nn.Module):
     [OPTIONAL ARGS]
         fg_iou_thresh(float): Minimum intersection over union between proposed box pairs and ground
             truth box pairs to be considered as positive
+        confident_pair_thresh(float):
         num_box_pairs_per_image(int): Number of box pairs used in training for each image
         positive_fraction(float): The propotion of positive box pairs used in training
+        hard_negative_fraction(float): 
         box_score_thresh(float): The box score threshold used to filter object detections 
             during evaluation
         box_nms_thresh(float): NMS threshold to filter object detections during evaluation
@@ -52,7 +54,9 @@ class InteractionHead(nn.Module):
             # Parameters for box pair construction
             object_class_to_target_class, human_idx,
             # Parameters for training
-            fg_iou_thresh=0.5, num_box_pairs_per_image=512, positive_fraction=0.25,
+            fg_iou_thresh=0.5, confident_pair_thresh=0.25,
+            num_box_pairs_per_image=512,
+            positive_fraction=0.25, hard_negative_fraction=0.5,
             # Parameters for inference
             box_score_thresh=0.2, box_nms_thresh=0.5):
         
@@ -75,8 +79,10 @@ class InteractionHead(nn.Module):
         self.human_idx = human_idx
 
         self.fg_iou_thresh = fg_iou_thresh
+        self.confident_pair_thresh = confident_pair_thresh
         self.num_box_pairs_per_image = num_box_pairs_per_image
         self.positive_fraction = positive_fraction
+        self.hard_negative_fraction = hard_negative_fraction
         # Parameters used to filter box detections during evaluation
         self.box_score_thresh = box_score_thresh
         self.box_nms_thresh = box_nms_thresh
@@ -477,9 +483,9 @@ class InteractRCNNTransform(transform.GeneralizedRCNNTransform):
 
         return results
 
-class TrainableHead(nn.Module):
+class TrainableHeadE2E(nn.Module):
     """
-    Add backbone to make interaction head trainable
+    Add backbone to make interaction head end-end trainable
 
     Arguments:
         cls_corr(list[Tensor]): One-to-many mapping from object classes to interaction classes
@@ -558,6 +564,34 @@ class TrainableHead(nn.Module):
         images, detections, targets = self.preprocess(
                 images, detections, targets)
 
+        features = self.backbone(images.tensors)
+        # Remove the last max pooled features in fpn
+        features = [v for v in features.values()]
+        features = features[:-1]
+
+        results = self.interaction_head(features, detections, targets)
+        if results is None:
+            return results
+
+        return self.transform.postprocess(results, images.image_sizes, self.original_image_sizes)
+
+
+class TrainableHead(TrainableHeadE2E):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def forward(self, images, detections, targets=None):
+        """
+        Arguments:
+            images(list[Tensor])
+            detections(list[dict])
+            targets(list[dict])
+        """
+        if self.training and targets is None:
+            raise ValueError("In training mode, targets should be passed")
+
+        images, detections, targets = self.preprocess(
+                images, detections, targets)
+
         with torch.no_grad():
             features = self.backbone(images.tensors)
         # Remove the last max pooled features in fpn
@@ -569,7 +603,6 @@ class TrainableHead(nn.Module):
             return results
 
         return self.transform.postprocess(results, images.image_sizes, self.original_image_sizes)
-
     """Override methods to only train interaction head"""
     def parameters(self):
         return self.interaction_head.parameters()
@@ -578,10 +611,8 @@ class TrainableHead(nn.Module):
     def load_state_dict(self, state_dict):
         self.interaction_head.load_state_dict(state_dict)
 
-class TrainableHeadE2E(TrainableHead):
+class InteractRCNN(nn.Module):
     """
-    Interaction head that is end-to-end trainable
-
     Arguments:
         detector(GeneralizedRCNN)
         cls_corr(list[Tensor])
@@ -628,6 +659,3 @@ class TrainableHeadE2E(TrainableHead):
 
         return results
 
-class InteractRCNN(nn.Module):
-    def __init__(self):
-        raise NotImplementedError
