@@ -444,6 +444,7 @@ class DetectionAPMeter:
             ap(FloatTensor[K])
         """
         ap = torch.zeros(len(output))
+        max_rec = torch.zeros_like(ap)
 
         if algorithm == 'INT':
             algorithm_handle = \
@@ -458,14 +459,14 @@ class DetectionAPMeter:
             raise ValueError("Unknown algorithm option {}.".format(algorithm))
 
         with multiprocessing.Pool() as pool:
-            for idx, result in enumerate(pool.map(
+            for idx, results in enumerate(pool.map(
                 func=cls.compute_ap_for_each,
                 iterable=[(idx, ngt, out, gt, algorithm_handle) 
                     for idx, (ngt, out, gt) in enumerate(zip(num_gt, output, labels))]
             )):
-                ap[idx] = result
+                ap[idx], max_rec[idx] = results
 
-        return ap
+        return ap, max_rec
 
     @classmethod
     def compute_ap_for_each(cls, tuple_):
@@ -475,11 +476,12 @@ class DetectionAPMeter:
             raise AssertionError("Class {}: ".format(idx)+
                 "Number of true positives larger than that of ground truth")
         if len(output) and len(labels):
-            return algorithm(cls.compute_precision_and_recall(output, labels, num_gt))
+            prec, rec = cls.compute_precision_and_recall(output, labels, num_gt)
+            return algorithm((prec, rec)), rec[-1]
         else:
             print("WARNING: Collected results are empty. "
                 "Return zero AP for class {}.".format(idx))
-            return 0
+            return 0, 0
 
     @staticmethod
     def compute_precision_and_recall(output, labels, num_gt=None, eps=1e-8):
@@ -557,5 +559,7 @@ class DetectionAPMeter:
         ]) for tar1, tar2 in zip(self._labels, self._labels_temp)]
         self.reset(keep_old=True)
 
-        return self.compute_ap(self._output, self._labels, self.num_gt,
+        self.ap, self.max_rec = self.compute_ap(self._output, self._labels, self.num_gt,
             algorithm=self.algorithm, chunksize=self._chunksize)
+
+        return self.ap
