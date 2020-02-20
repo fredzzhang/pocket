@@ -86,8 +86,11 @@ class RoIFeatureExtractor(nn.Module):
         self._backbone_name = backbone_name
         self._pretrained = pretrained
 
-        self.detector = fasterrcnn_resnet_fpn(backbone_name, pretrained)
-        self.detector.eval()
+        detector = fasterrcnn_resnet_fpn(backbone_name, pretrained)
+
+        self.transform = detector.transform
+        self.backbone = detector.backbone
+        self.roi_heads = detector.roi_heads
 
     def __repr__(self):
         reprstr = self.__class__.__name__ + '('
@@ -112,7 +115,7 @@ class RoIFeatureExtractor(nn.Module):
             Tensor[M, ...]: Features corresponding to different images are stacked in order
         """
         original_image_sizes = [img.shape[-2:] for img in images]
-        images, _ = self.detector.transform(images)
+        images, _ = self.transform(images)
         # resize the bounding boxes
         for i, (h, w) in enumerate(images.image_sizes):
             scale_h = float(h) / original_image_sizes[i][0]
@@ -120,8 +123,8 @@ class RoIFeatureExtractor(nn.Module):
             assert abs(scale_h - scale_w) < 1e-2,\
                     'Unequal scaling factor'
             boxes[i] *= (scale_h + scale_w) / 2
-        features = self.detector.backbone(images.tensors)
-        box_features = self.detector.roi_heads.box_roi_pool(
+        features = self.backbone(images.tensors)
+        box_features = self.roi_heads.box_roi_pool(
                 features,
                 boxes,
                 images.image_sizes)
@@ -130,11 +133,11 @@ class RoIFeatureExtractor(nn.Module):
             return box_features
         elif self._return_layer == 'fc6':
             box_features = box_features.flatten(start_dim=1)
-            return self.detector.roi_heads.box_head.fc6(box_features)
+            return self.roi_heads.box_head.fc6(box_features)
         elif self._return_layer == 'fc7':
             box_features = box_features.flatten(start_dim=1)
-            box_features = relu(self.detector.roi_heads.box_head.fc6(box_features))
-            return relu(self.detector.roi_heads.box_head.fc7(box_features))
+            box_features = relu(self.roi_heads.box_head.fc6(box_features))
+            return relu(self.roi_heads.box_head.fc7(box_features))
 
 class RoIProjector(RoIFeatureExtractor):
     """
@@ -156,7 +159,7 @@ class RoIProjector(RoIFeatureExtractor):
             Tensor[M, 91]: Predicted scores for each class including background
         """
         box_features = super().forward(images, boxes)
-        class_logits, _ = self.detector.roi_heads.box_predictor(relu(box_features))
+        class_logits, _ = self.roi_heads.box_predictor(relu(box_features))
         pred_scores = nn.functional.softmax(class_logits, -1)
 
         return box_features, pred_scores
