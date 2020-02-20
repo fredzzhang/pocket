@@ -10,6 +10,7 @@ Australian Centre for Robotic Vision
 import os
 import copy
 import time
+import json
 import torch
 from torch.utils.data import DataLoader
 
@@ -488,6 +489,8 @@ class MultiLabelClassificationEngine(LearningEngine):
         self._val_loader = val_loader
         self._ap_alg = ap_algorithm
 
+        self.ap = dict()
+
     def _validate(self):
         self._state.net.eval()
         ap = AveragePrecisionMeter(algorithm=self._ap_alg)
@@ -519,14 +522,18 @@ class MultiLabelClassificationEngine(LearningEngine):
     def _on_end_epoch(self):
         super()._on_end_epoch()
         timestamp = time.time()
-        map_ = self._state.ap.eval().mean().item()
+        ap = self._state.ap.eval()
         elapsed = time.time() - timestamp
         print("\n=> Training (+{:.2f}s)\n"
             "Epoch: {} | mAP: {:.4f} | Time(eval): {:.2f}s".format(
                 time.time() - self._dawn,
                 self._state.epoch,
-                map_, elapsed
+                ap.mean().item(), elapsed
             ))
+        self.ap[self._state.epoch] = ap.tolist()
+        with open(os.path.join(self._cache_dir, 'ap.json'), 'w') as f:
+            json.dump(self.ap, f)
+
         self._state.ap.reset()
         if self._val_loader is not None:
             self._validate()
