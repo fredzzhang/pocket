@@ -245,7 +245,7 @@ class InteractionHead(nn.Module):
             num_hard_neg = self.num_box_pairs_per_image - num_pos - num_easy_neg
 
             return torch.cat([
-                pos_idx[torch.randperm(len(pos_idx), device=labels.device)[:num_pos_to_sample]],
+                pos_idx[torch.randperm(len(pos_idx), device=labels.device)[:num_pos]],
                 easy_neg[torch.randperm(len(easy_neg), device=labels.device)[:num_easy_neg]],
                 hard_neg[torch.randperm(len(hard_neg), device=labels.device)[:num_hard_neg]]
             ])
@@ -383,7 +383,9 @@ class InteractionHead(nn.Module):
                 * torch.sigmoid(class_logits)).split(num_boxes)
 
         results = []
-        for scores, b_h, b_o in zip(interaction_scores, boxes_h, boxes_o):
+        for p_scores, scores, b_h, b_o in zip(
+            prior_scores, interaction_scores, boxes_h, boxes_o
+        ):
 
             keep_cls = [s.nonzero().squeeze(1) for s in scores]
             keep_box = torch.as_tensor([bool(len(pred_cls)) for pred_cls in keep_cls],
@@ -393,7 +395,8 @@ class InteractionHead(nn.Module):
                 boxes_h=b_h[keep_box].view(-1, 4),
                 boxes_o=b_o[keep_box].view(-1, 4),
                 labels=keep_cls,
-                scores=[scores[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
+                scores=[scores[i, pred_cls] for i, pred_cls in enumerate(keep_cls)],
+                prior_scores=[p_scores[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
             ))
 
         return results
