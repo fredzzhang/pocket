@@ -90,7 +90,20 @@ class RoIFeatureExtractor(nn.Module):
 
         self.transform = detector.transform
         self.backbone = detector.backbone
-        self.roi_heads = detector.roi_heads
+
+        self.roi_pool = detector.roi_heads.box_roi_pool
+        if return_layer == 'pool':
+            self.roi_heads = None
+        elif return_layer == 'fc6':
+            self.roi_heads = detector.roi_heads.fc6
+        elif return_layer == 'fc7':
+            self.roi_heads = nn.Sequential(
+                detector.roi_heads.box_head.fc6,
+                nn.ReLU(),
+                detector.roi_heads.box_head.fc7
+            )
+        else:
+            raise ValueError("Specified return layer does not exist")
 
     def __repr__(self):
         reprstr = self.__class__.__name__ + '('
@@ -124,27 +137,32 @@ class RoIFeatureExtractor(nn.Module):
                     'Unequal scaling factor'
             boxes[i] *= (scale_h + scale_w) / 2
         features = self.backbone(images.tensors)
-        box_features = self.roi_heads.box_roi_pool(
-                features,
-                boxes,
-                images.image_sizes)
+        box_features = self.roi_pool(
+            features,
+            boxes,
+            images.image_sizes
+        )
 
         if self._return_layer == 'roi_pool':
             return box_features
-        elif self._return_layer == 'fc6':
+        else:
             box_features = box_features.flatten(start_dim=1)
-            return self.roi_heads.box_head.fc6(box_features)
-        elif self._return_layer == 'fc7':
-            box_features = box_features.flatten(start_dim=1)
-            box_features = relu(self.roi_heads.box_head.fc6(box_features))
-            return relu(self.roi_heads.box_head.fc7(box_features))
+            return self.roi_heads(box_features)
 
-class RoIProjector(RoIFeatureExtractor):
+class RoIProjector(nn.Module):
     """
     Project RoIs onto an image
     """
     def __init__(self, backbone_name='resnet50', pretrained=True):
-        super().__init__('fc7', backbone_name, pretrained)
+        super().__init__()
+        self._backbone_name = backbone_name
+        self._pretrained = pretrained
+
+        detector = fasterrcnn_resnet_fpn(backbone_name, pretrained)
+
+        self.transform = detector.transform
+        self.backbone = detector.backbone
+        self.roi_heads = detector.roi_heads
 
     def forward(self, images, boxes):
         """
@@ -158,8 +176,25 @@ class RoIProjector(RoIFeatureExtractor):
             Tensor[M, 1024]: fc7 features stacked in order
             Tensor[M, 91]: Predicted scores for each class including background
         """
-        box_features = super().forward(images, boxes)
-        class_logits, _ = self.roi_heads.box_predictor(relu(box_features))
+        original_image_sizes = [img.shape[-2:] for img in images]
+        images, _ = self.transform(images)
+        # resize the bounding boxes
+        for i, (h, w) in enumerate(images.image_sizes):
+            scale_h = float(h) / original_image_sizes[i][0]
+            scale_w = float(w) / original_image_sizes[i][1]
+            assert abs(scale_h - scale_w) < 1e-2,\
+                    'Unequal scaling factor'
+            boxes[i] *= (scale_h + scale_w) / 2
+        features = self.backbone(images.tensors)
+
+        box_features = self.roi_heads.box_roi_pool(
+            features,
+            boxes,
+            images.image_sizes
+        )
+        box_features = self.roi_heads.box_head(box_features)
+
+        class_logits, _ = self.roi_heads.box_predictor(box_features)
         pred_scores = nn.functional.softmax(class_logits, -1)
 
         return box_features, pred_scores
