@@ -46,7 +46,7 @@ def main():
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ]),
             target_transform=target_transform),
-        batch_size=32, shuffle=True, num_workers=4
+        batch_size=16, shuffle=True, num_workers=4
     )
     val_loader = torch.utils.data.DataLoader(
         datasets.VOCDetection('./data', image_set='val',
