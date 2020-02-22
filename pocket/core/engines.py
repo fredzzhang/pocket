@@ -493,7 +493,7 @@ class MultiLabelClassificationEngine(LearningEngine):
 
     def _validate(self):
         self._state.net.eval()
-        ap = AveragePrecisionMeter(algorithm=self._ap_alg)
+        meter = AveragePrecisionMeter(algorithm=self._ap_alg)
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
@@ -502,16 +502,19 @@ class MultiLabelClassificationEngine(LearningEngine):
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
             running_loss.append(loss.item())
-            ap.append(output, batch[-1])
-        map_ = ap.eval().mean().item()
+            meter.append(output, batch[-1])
+        ap = meter.eval()
         elapsed = time.time() - timestamp
 
         print("=> Validation (+{:.2f}s)\n"
             "Epoch: {} | mAP: {:.4f} | Loss: {:.4f} | Time: {:.2f}s\n".format(
                 time.time() - self._dawn,
-                self._state.epoch, map_,
+                self._state.epoch, ap.mean().item(),
                 running_loss.mean(), elapsed
             ))
+        self.ap[self._state.epoch] = ap.tolist()
+        with open(os.path.join(self._cache_dir, 'ap.json'), 'w') as f:
+            json.dump(self.ap, f)
 
     def _on_start_epoch(self):
         if self._state.epoch == 0 and self._val_loader is not None:
@@ -530,9 +533,6 @@ class MultiLabelClassificationEngine(LearningEngine):
                 self._state.epoch,
                 ap.mean().item(), elapsed
             ))
-        self.ap[self._state.epoch] = ap.tolist()
-        with open(os.path.join(self._cache_dir, 'ap.json'), 'w') as f:
-            json.dump(self.ap, f)
 
         self._state.ap.reset()
         if self._val_loader is not None:
