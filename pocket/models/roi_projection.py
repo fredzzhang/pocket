@@ -143,7 +143,7 @@ class RoIFeatureExtractor(nn.Module):
             images.image_sizes
         )
 
-        if self._return_layer == 'roi_pool':
+        if self._return_layer == 'pool':
             return box_features
         else:
             box_features = box_features.flatten(start_dim=1)
