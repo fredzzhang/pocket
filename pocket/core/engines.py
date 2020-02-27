@@ -103,6 +103,8 @@ class LearningEngine(State):
         self._verbal = verbal
         self._print_interval = print_interval
         self._cache_dir = cache_dir
+        if not os.path.exists(self._cache_dir):
+            os.mkdir(self._cache_dir)
 
         # Set flags for GPU
         torch.backends.cudnn.benchmark = torch.cuda.is_available()
@@ -218,8 +220,6 @@ class LearningEngine(State):
 
     def save_checkpoint(self):
         """Save a checkpoint of the model state"""
-        if not os.path.exists(self._cache_dir):
-            os.mkdir(self._cache_dir)
         # Make a copy of the network parameters and relocate to cpu
         model_state_dict = \
             self._state.net.module.state_dict().copy() if self._multigpu \
