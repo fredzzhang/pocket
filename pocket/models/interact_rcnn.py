@@ -316,7 +316,7 @@ class InteractionHead(nn.Module):
                 ) >= self.fg_iou_thresh).view(-1, 2)
                 hoi_labels[
                     fg_match[:, 0], 
-                    targets_in_image['hoi'][fg_match[:, 1]]
+                    targets_in_image['labels'][fg_match[:, 1]]
                 ] = 1
 
                 # Subsample up to a specified number of box pairs 
