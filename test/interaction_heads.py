@@ -50,6 +50,7 @@ def test(args):
     with open(detection_path, 'r') as f:
         detection = pocket.ops.to_tensor(json.load(f), input_format='dict')
 
+    target['labels'] = target['hoi']
     if use_gpu:
         image, detection, target = pocket.ops.relocate_to_cuda(
             (image, detection, target), 0)
@@ -62,7 +63,7 @@ def test(args):
     print("Execution time: ", time.time() - t)
 
     if args.mode == 'train':
-        print(results['interaction_loss'])
+        print(results)
     else:
         for label in results[0]['labels']:
             print(label.tolist())
