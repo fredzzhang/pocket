@@ -90,12 +90,22 @@ class HICODet(ImageDataset):
     @property
     def object_to_interaction(self):
         """
-        The interaction classes that involve each object type
+        The interaction classes that involve an object type
         
         Returns:
             list[list]
         """
         return self._obj_to_int.copy()
+
+    @property
+    def object_to_action(self):
+        """
+        The action classes that involve an object type
+
+        Returns:
+            list[list]
+        """
+        return self._obj_to_action.copy()
 
     @property
     def anno_interaction(self):
@@ -182,6 +192,10 @@ class HICODet(ImageDataset):
         for corr in f['correspondence']:
             obj_to_int[corr[1]].append(corr[0])
 
+        obj_to_action = [[] for _ in range(self.num_action_cls)]
+        for corr in f['correspondence']:
+            obj_to_action[corr[1]].append(corr[2])
+
         num_anno = [0 for _ in range(self.num_interation_cls)]
         for anno in f['annotation']:
             for hoi in anno['hoi']:
@@ -189,6 +203,7 @@ class HICODet(ImageDataset):
 
         self._idx = idx
         self._obj_to_int = obj_to_int
+        self._obj_to_action = obj_to_action
         self._num_anno = num_anno
 
         self._anno = f['annotation']
