@@ -71,7 +71,7 @@ class InteractionHead(nn.Module):
             nn.Linear(representation_size, representation_size),
             nn.ReLU()
         )
-        self.box_pair_logistic = nn.Linear(representation_size, num_classes+1)
+        self.box_pair_logistic = nn.Linear(representation_size, num_classes)
 
         self.num_classes = num_classes  
 
@@ -344,27 +344,14 @@ class InteractionHead(nn.Module):
 
     def compute_interaction_classification_loss(self, 
             class_logits, prior_scores, box_pair_labels):
-
-        class_logits = torch.sigmoid(class_logits)
-        interaction_scores = class_logits[:, :-1] * class_logits[:, -1, None]
-
-        interactiveness_labels = (box_pair_labels.sum(1) > 0).float()
-        interactiveness_loss = torch.nn.functional.binary_cross_entropy(
-            class_logits[:, -1], interactiveness_labels)
-
         # Ignore interaction classes with zero prior scores
         i, j = prior_scores.nonzero().unbind(1)
 
-        prod = prior_scores[i, j] * interaction_scores[i, j]
+        interaction_scores = prior_scores[i, j] * \
+            torch.sigmoid(class_logits)[i, j]
         labels = box_pair_labels[i, j]
 
-        classification_loss = torch.nn.functional.binary_cross_entropy(
-            prod, labels)
-
-        return dict(
-                interactiveness_loss=interactiveness_loss,
-                classification_loss=classification_loss
-            )
+        return torch.nn.functional.binary_cross_entropy(interaction_scores, labels)
 
     def sinkhorn_knopp_normalisation(self, boxes_h, boxes_o, scores):
         """
@@ -392,10 +379,8 @@ class InteractionHead(nn.Module):
 
     def postprocess(self, class_logits, prior_scores, boxes_h, boxes_o):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
-
-        class_logits = torch.sigmoid(class_logits)
-        class_logits = class_logits[:, :-1] * class_logits[:, -1, None]
-        interaction_scores = (_cat(prior_scores) * class_logits).split(num_boxes)
+        interaction_scores = (_cat(prior_scores)
+                * torch.sigmoid(class_logits)).split(num_boxes)
 
         results = []
         for p_scores, scores, b_h, b_o in zip(
@@ -458,12 +443,13 @@ class InteractionHead(nn.Module):
         box_pair_features = self.box_pair_pooler(features, boxes_h, boxes_o)
         box_pair_features = box_pair_features.flatten(start_dim=1)
         box_pair_features = self.box_pair_head(box_pair_features)
-
         class_logits = self.box_pair_logistic(box_pair_features)
 
         if self.training:
-            return self.compute_interaction_classification_loss(
-                class_logits, _cat(prior_scores), _cat(box_pair_labels))
+            loss = dict(interaction_loss=self.compute_interaction_classification_loss(
+                class_logits, _cat(prior_scores), _cat(box_pair_labels)
+            ))
+            return loss
         
         results = self.postprocess(
             class_logits, prior_scores, boxes_h, boxes_o)
