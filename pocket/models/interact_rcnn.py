@@ -54,9 +54,9 @@ class InteractionHead(nn.Module):
             # Parameters for box pair construction
             object_class_to_target_class, human_idx,
             # Parameters for training
-            fg_iou_thresh=0.5, confident_pair_thresh=0.25,
+            fg_iou_thresh=0.5, confident_pair_thresh=2,
             num_box_pairs_per_image=512,
-            positive_fraction=0.25, hard_negative_fraction=0.5,
+            positive_fraction=0.25, hard_negative_fraction=0.0,
             # Parameters for inference
             box_score_thresh=0.2, box_nms_thresh=0.5):
         
