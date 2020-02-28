@@ -1,5 +1,5 @@
 """
-Interation head interfacing with backbone CNN and RPN
+Interation head interfacing with backbone CNN
 
 Fred Zhang <frederic.zhang@anu.edu.au>
 
@@ -35,6 +35,9 @@ def test(args):
     interaction_head = TrainableHead(
             dataset.object_to_interaction, 49,
             masked_pool=args.masked_pool)
+    if os.path.exists(args.model_path):
+        print("Loading model from {}...".format(args.model_path))
+        interaction_head.load_state_dict(torch.load(args.model_path)['model_state_dict'])
     if use_gpu:
         interaction_head = interaction_head.cuda()
 
@@ -83,6 +86,10 @@ if __name__ == '__main__':
     parser.add_argument('--mode',
                         default='train',
                         type=str)
+    parser.add_argument('--model-path',
+                        default='',
+                        type=str
+                        )
     parser.add_argument('--gpu',
                         action='store_true',
                         default=False)
