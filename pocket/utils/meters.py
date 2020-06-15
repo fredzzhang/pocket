@@ -216,7 +216,8 @@ class AveragePrecisionMeter:
     @classmethod            
     def compute_ap(cls, output, labels, num_gt=None, algorithm='AUC', chunksize=-1):
         """
-        Compute AP precisely as the area under the precision-recall curve
+        Compute average precision under the classification setting. Scores of all 
+        classes are retained for each sample.
 
         Arguments:
             output(FloatTensor[N, K])
@@ -430,7 +431,9 @@ class DetectionAPMeter:
     @classmethod
     def compute_ap(cls, output, labels, num_gt, algorithm='AUC', chunksize=-1):
         """
-        Compute AP precisely as the area under the precision-recall curve
+        Compute average precision under the detection setting. Only scores of the 
+        predicted classes are retained for each sample. As a result, different classes
+        could have different number of predictions.
 
         Arguments:
             output(list[FloatTensor])
