@@ -12,15 +12,14 @@ import numpy as np
 
 from PIL import Image, ImageDraw
 
-def draw_boxes(image, boxes, fill=None, outline=None):
+def draw_boxes(image, boxes, **kwargs):
     """Draw bounding boxes onto a PIL image
 
     Arguments:
         image(PIL Image)
         boxes(torch.Tensor[N,4] or np.ndarray[N,4] or List[List]): Bounding box
             coordinates in the format (x1, y1, x2, y2)
-        fill(str)
-        outline(str)
+        kwargs(dict): Parameters for PIL.ImageDraw.Draw.rectangle
     """
     if isinstance(boxes, (torch.Tensor, np.ndarray)):
         boxes = boxes.tolist()
@@ -29,5 +28,5 @@ def draw_boxes(image, boxes, fill=None, outline=None):
 
     canvas = ImageDraw.Draw(image)
     for box in boxes:
-        canvas.rectangle(box, fill=fill, outline=outline)
+        canvas.rectangle(box, **kwargs)
     return image
