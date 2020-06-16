@@ -479,7 +479,7 @@ class DetectionAPMeter:
             raise AssertionError("Class {}: ".format(idx)+
                 "Number of true positives larger than that of ground truth")
         if len(output) and len(labels):
-            prec, rec = cls.compute_precision_and_recall(output, labels, num_gt)
+            prec, rec = cls.compute_pr_for_each(output, labels, num_gt)
             return algorithm((prec, rec)), rec[-1]
         else:
             print("WARNING: Collected results are empty. "
@@ -487,7 +487,7 @@ class DetectionAPMeter:
             return 0, 0
 
     @staticmethod
-    def compute_precision_and_recall(output, labels, num_gt=None, eps=1e-8):
+    def compute_pr_for_each(output, labels, num_gt=None, eps=1e-8):
         """
         Arguments:
             output(FloatTensor[N])
