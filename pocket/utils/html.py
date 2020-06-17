@@ -86,7 +86,7 @@ class HTMLTable:
 
 class ImageHTMLTable(HTMLTable):
     def __init__(self, num_cols, image_dir,
-                parser=None, extension=None,
+                parser=None, sorter=None, extension=None,
                 **kwargs):
         """HTML table of images and captions
 
@@ -94,20 +94,26 @@ class ImageHTMLTable(HTMLTable):
             num_cols(int): Number of columns in the table
             image_dir(str): Directory where images are located
             parser(callable): A parser that formats image names into captions
+            sorter(callable): A function that sorts image names into desired order
             extension(str): Format of image files to be collected
             kwargs(dict): Attributes of HTML <img> tag. e.g. {"width": "75%"}
         """
         if parser is None:
             parser = lambda a: a
+        if sorter is None:
+            sorter = lambda a: range(len(a))
         if extension is None:
             extension = (".jpg", ".png")
 
         # Format attributes of <img> tag
         attr = " ".join(["{}=\"{}\"".format(k, v) for k, v in kwargs.items()])
 
-        # Fetch image files with specified format and generate html code
-        all_images = [s for s in os.listdir(image_dir) if s.endswith(extension)]
-        all_image_paths = [os.path.join(image_dir, im) for im in all_images]
+        # Fetch image files with specified format
+        files = os.listdir(image_dir); files.sort()
+        all_images = [s for s in files if s.endswith(extension)]
+        # Sort the images by their names
+        order = sorter(all_images)
+        all_image_paths = [os.path.join(image_dir, all_images[i]) for i in order]
         image_cells = ["<img src=\"{}\" ".format(im_p)+attr for im_p in all_image_paths]
 
         # Parse image names
