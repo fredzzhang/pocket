@@ -117,6 +117,6 @@ class ImageHTMLTable(HTMLTable):
         image_cells = ["<img src=\"{}\" ".format(im_p)+attr for im_p in all_image_paths]
 
         # Parse image names
-        caption_cells = [parser(im) for im in all_images]
+        caption_cells = [parser(all_images[i]) for i in order]
 
         super().__init__(num_cols, image_cells, caption_cells)
