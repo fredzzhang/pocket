@@ -77,11 +77,11 @@ class DatasetTree:
         )
 
         root._children.images.add({
-            i: Node(
+            str(i): Node(
                 name=str(i),
                 parent=root.children.images,
                 data={
-                    j: labels.count(j)
+                    str(j): labels.count(j)
                     for j in np.unique(np.asarray(labels))
                 },
             ) for i, labels in enumerate(image_labels)
@@ -93,7 +93,7 @@ class DatasetTree:
                 class_pool[j][i]=labels.count(j)
 
         root._children.classes.add({
-            i: Node(
+            str(i): Node(
                 name=str(i),
                 parent=root.children.classes,
                 data=pool,
