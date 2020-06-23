@@ -18,7 +18,8 @@ class DataDict(dict):
     augmented utility for loading and saving
     
     Arguments:
-        data_dict(dict, optional): A Python dictionary
+        input_dict(dict, optional): A Python dictionary
+        kwargs: Keyworded arguments to be stored in the dict
 
     Example:
 
@@ -30,8 +31,9 @@ class DataDict(dict):
         >>> person.sex = 'male'
         >>> person.save('./person.pkl', 'w')
     """
-    def __init__(self, data_dict=None):
-        data_dict = dict() if data_dict is None else data_dict
+    def __init__(self, input_dict=None, **kwargs):
+        data_dict = dict() if input_dict is None else input_dict
+        data_dict.update(kwargs)
         super(DataDict, self).__init__(**data_dict)
 
     def __getattr__(self, name):
