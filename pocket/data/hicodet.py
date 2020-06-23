@@ -74,6 +74,10 @@ class HICODet(ImageDataset):
         return reprstr
 
     @property
+    def annotations(self):
+        return self._anno
+
+    @property
     def class_corr(self):
         """
         Class correspondence matrix in zero-based index
