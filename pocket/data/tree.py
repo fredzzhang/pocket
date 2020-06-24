@@ -72,8 +72,8 @@ class DatasetTree:
     def __init__(self, num_classes, image_labels):
         root = Node("root")
         root.add(
-            images=Node("images", parent=root),
-            classes=Node("classes", parent=root)
+            images=Node("images", parent=root, data=dict()),
+            classes=Node("classes", parent=root, data=dict())
         )
 
         root._children.images.add({
@@ -90,7 +90,7 @@ class DatasetTree:
         class_pool = [{} for _ in range(num_classes)]
         for i, labels in enumerate(image_labels):
             for j in np.unique(np.asarray(labels)):
-                class_pool[j][i]=labels.count(j)
+                class_pool[j][str(i)]=labels.count(j)
 
         root._children.classes.add({
             str(i): Node(
