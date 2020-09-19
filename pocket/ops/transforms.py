@@ -11,7 +11,7 @@ import torch
 import torchvision
 
 __all__ = [
-    'to_tensor', 'ToTensor'
+    'to_tensor', 'ToTensor', 'Flatten'
 ]
 
 def _to_list_of_tensor(x, dtype=None, device=None):
