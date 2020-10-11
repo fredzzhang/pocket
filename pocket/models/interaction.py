@@ -115,21 +115,27 @@ class InteractionHead(nn.Module):
             box_pair_labels[i, j]
         )
 
-    def postprocess(self, scores, boxes_h, boxes_o):
+    def postprocess(self, scores, boxes_h, boxes_o, labels=None):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
         scores = scores.split(num_boxes)
+        if labels is None:
+            labels = [[] for _ in range(len(num_boxes))]
 
         results = []
-        for s, b_h, b_o in zip(scores, boxes_h, boxes_o):
+        for s, b_h, b_o, l in zip(scores, boxes_h, boxes_o, labels):
             # Remove irrelevant classes
             keep_cls = [row.nonzero().squeeze(1) for row in s]
 
-            results.append(dict(
+            result_dict = dict(
                 boxes_h=b_h,
                 boxes_o=b_o,
                 labels=keep_cls,
                 scores=[s[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
-            ))
+            )
+            if self.training:
+                result_dict["gt_labels"] = [l[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
+
+            results.append(result_dict)
 
         return results
 
@@ -148,12 +154,12 @@ class InteractionHead(nn.Module):
                 "object": Tensor[N] Object class index for the object in each pair
                 "target": Tensor[N] Target class index for each pair
         Returns:
-            loss(dict): During training, return a dict that contains classification loss
             results(list[dict]): During evaluation, return dicts of detected interacitons
                 "boxes_h": Tensor[M, 4]
                 "boxes_o": Tensor[M, 4]
                 "labels": list(Tensor) The predicted label indices. A list of length M.
                 "scores": list(Tensor) The predcited scores. A list of length M. 
+            During training, the classification loss is appended to the end of the list
         """
         if self.training:
             assert targets is not None, "Targets should be passed during training"
@@ -170,15 +176,18 @@ class InteractionHead(nn.Module):
             box_coords, box_labels, box_scores, targets
         )
 
+        # No valid human-object pairs were formed
+        if len(box_pair_features) == 0:
+            return None
+
         interaction_scores = self.box_pair_predictor(box_pair_features, box_pair_prior)
 
+        results = self.postprocess(interaction_scores, boxes_h, boxes_o, box_pair_labels)
+
         if self.training:
-            loss = dict(interaction_loss=self.compute_interaction_classification_loss(
+            results.append(self.compute_interaction_classification_loss(
                 interaction_scores, _cat(box_pair_labels)
             ))
-            return loss
-        
-        results = self.postprocess(interaction_scores, boxes_h, boxes_o)
 
         return results
 
@@ -223,13 +232,16 @@ class HOINetworkTransform(transform.GeneralizedRCNNTransform):
 
     def postprocess(self, results, image_shapes, original_image_sizes):
         if self.training:
-            return results
+            loss = results.pop()
 
         for pred, im_s, o_im_s in zip(results, image_shapes, original_image_sizes):
             boxes_h, boxes_o = pred['boxes_h'], pred['boxes_o']
             boxes_h = transform.resize_boxes(boxes_h, im_s, o_im_s)
             boxes_o = transform.resize_boxes(boxes_o, im_s, o_im_s)
             pred['boxes_h'], pred['boxes_o'] = boxes_h, boxes_o
+
+        if self.training:
+            results.append(loss)
 
         return results
 
