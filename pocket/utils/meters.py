@@ -222,7 +222,7 @@ class AveragePrecisionMeter:
         Arguments:
             output(FloatTensor[N, K])
             labels(FloatTensor[N, K])
-            num_gt(Tensor[N]): Number of ground truth instances for each class
+            num_gt(Tensor[K]): Number of ground truth instances for each class
             algorithm(str): AP evaluation algorithm
             chunksize(int, optional): The approximate size the given iterable will be split
                 into for each worker. Use -1 to make the argument adaptive to iterable size
@@ -270,7 +270,7 @@ class AveragePrecisionMeter:
         Arguments:
             output(FloatTensor[N, K])
             labels(FloatTensor[N, K])
-            num_gt(Tensor[N])
+            num_gt(Tensor[K])
             eps(float): A small constant to avoid division by zero
         Returns:
             prec(FloatTensor[N, K])
