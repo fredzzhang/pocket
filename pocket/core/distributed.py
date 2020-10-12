@@ -27,6 +27,7 @@ class DistributedLearningEngine(State):
     [REQUIRED ARGS]
         rank(int): Rank of the current process 
         device(int or torch.device): CUDA device to be used for training
+        world_size(int): Number of subprocesses in distributed learning
         net(Module): The network to be trained
         criterion(callable): Loss function
         train_loader(iterable): Dataloader for training set, with batch input in the
@@ -43,7 +44,7 @@ class DistributedLearningEngine(State):
         print_interval(int): Number of iterations to print statistics
         cache_dir(str): Directory to save checkpoints
     """
-    def __init__(self, rank, device,
+    def __init__(self, rank, device, world_size,
             net, criterion, train_loader,
             optim='SGD', optim_params=None, optim_state_dict=None,
             lr_scheduler=False, lr_sched_params=None,
@@ -59,6 +60,7 @@ class DistributedLearningEngine(State):
 
         self._rank = rank
         self._device = torch.device(device)
+        self._world_size = world_size
 
         self._criterion = criterion if not isinstance(criterion, torch.nn.Module) \
             else criterion.to(device)
@@ -73,6 +75,8 @@ class DistributedLearningEngine(State):
         torch.backends.cudnn.benchmark = True
         if hasattr(train_loader, 'pin_memory'):
             train_loader.pin_memory = True
+        # Relocate model to designated device
+        net.cuda(device)
 
         # Initialize optimizer
         net_params = [p for p in net.parameters() if p.requires_grad]
@@ -160,7 +164,7 @@ class DistributedLearningEngine(State):
 
     def _on_end_iteration(self):
         # Print stats in the master process
-        if self._rank == 0 and self._verbal and self._state.iteration % self._print_interval == 0:
+        if self._verbal and self._state.iteration % self._print_interval == 0:
             self._print_statistics()
         del self._state['inputs']
         del self._state['targets']
@@ -175,14 +179,19 @@ class DistributedLearningEngine(State):
         self._state.optimizer.step()
 
     def _print_statistics(self):
-        print("[Ep.][Iter.]: [{}][{}] | "
+        running_loss = self._state.running_loss.mean()
+        t_data = self._state.t_data.sum() / self._world_size
+        t_iter = self._state.t_iteration.sum() / self._world_size
+
+        # Print stats in the master process
+        if self._rank == 0:
+            print(
+                "[Ep.][Iter.]: [{}][{}] | "
                 "Loss: {:.4f} | "
                 "Time[Data/Iter.]: [{:.4f}s/{:.4f}s]".format(
-                    self._state.epoch, self._state.iteration,
-                    self._state.running_loss.mean(),
-                    self._state.t_data.sum(),
-                    self._state.t_iteration.sum())
-            )
+                self._state.epoch, self._state.iteration,
+                running_loss, t_data, t_iter
+            ))
         self._state.t_iteration.reset()
         self._state.t_data.reset()
         self._state.running_loss.reset()
