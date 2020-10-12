@@ -22,6 +22,7 @@ def main(rank, world_size):
     dist.init_process_group(
         backend="nccl",
         init_method="env://",
+        world_size=world_size,
         rank=rank
     )
     # Fix random seed
@@ -31,7 +32,7 @@ def main(rank, world_size):
     # Initialize loss function
     criterion = torch.nn.CrossEntropyLoss()
     # Prepare dataset
-    trainset = datasets.MNIST('./data', train=True, download=True,
+    trainset = datasets.MNIST('../data', train=True, download=True,
         transform=transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))])
@@ -46,7 +47,7 @@ def main(rank, world_size):
         num_workers=2, pin_memory=True, sampler=train_sampler)
     # Intialize learning engine and start training
     engine = DistributedLearningEngine(
-        rank, rank,
+        rank, rank, world_size,
         net, criterion, train_loader,
     )
     # Train the network for one epoch with default optimizer option
@@ -59,7 +60,6 @@ if __name__ == '__main__':
     # Number of GPUs to run the experiment with
     WORLD_SIZE = 2
 
-    os.environ["WORLD_SIZE"] = WORLD_SIZE
-    os.environ["MASTER_ADDR"]
-    os.environ["MASTER_PORT"] = 8888
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "8888"
     mp.spawn(main, nprocs=WORLD_SIZE, args=(WORLD_SIZE,))
