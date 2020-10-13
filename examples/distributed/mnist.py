@@ -47,7 +47,6 @@ def main(rank, world_size):
         num_workers=2, pin_memory=True, sampler=train_sampler)
     # Intialize learning engine and start training
     engine = DistributedLearningEngine(
-        rank, rank, world_size,
         net, criterion, train_loader,
     )
     # Train the network for one epoch with default optimizer option
