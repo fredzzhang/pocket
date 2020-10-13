@@ -118,6 +118,7 @@ class DistributedLearningEngine(State):
         self._state.t_iteration = SyncedNumericalMeter(maxlen=print_interval)
 
     def __call__(self, n):
+        self.epochs = n
         # Train for a specified number of epochs
         self._on_start()
         for _ in range(n):
@@ -186,12 +187,15 @@ class DistributedLearningEngine(State):
 
         # Print stats in the master process
         if self._rank == 0:
+            num_iter = len(self._train_loader)
+            n_d = len(str(num_iter))
             print(
-                "[Ep.][Iter.]: [{}][{}] | "
-                "Loss: {:.4f} | "
+                "Epoch [{}/{}], Iter. [{}/{}], "
+                "Loss: {:.4f}, "
                 "Time[Data/Iter.]: [{:.4f}s/{:.4f}s]".format(
-                self._state.epoch, self._state.iteration,
-                running_loss, t_data, t_iter
+                self._state.epoch, self.epochs,
+                str(self._state.iteration - num_iter * (self._state.epoch - 1)).zfill(n_d),
+                num_iter, running_loss, t_data, t_iter
             ))
         self._state.t_iteration.reset()
         self._state.t_data.reset()
