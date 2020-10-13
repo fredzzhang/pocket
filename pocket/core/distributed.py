@@ -25,9 +25,6 @@ class DistributedLearningEngine(State):
     Arguments:
 
     [REQUIRED ARGS]
-        rank(int): Rank of the current process 
-        device(int or torch.device): CUDA device to be used for training
-        world_size(int): Number of subprocesses in distributed learning
         net(Module): The network to be trained
         criterion(callable): Loss function
         train_loader(iterable): Dataloader for training set, with batch input in the
@@ -35,6 +32,7 @@ class DistributedLearningEngine(State):
             the following forms: Tensor, list[Tensor], dict[Tensor]
 
     [OPTIONAL ARGS]
+        device(int or torch.device): CUDA device to be used for training
         optim(str): Optimizer to be used. Choose between 'SGD' and 'Adam'
         optim_params(dict): Parameters for the selected optimizer
         optim_state_dict(dict): Optimizer state dict to be loaded
@@ -44,9 +42,10 @@ class DistributedLearningEngine(State):
         print_interval(int): Number of iterations to print statistics
         cache_dir(str): Directory to save checkpoints
     """
-    def __init__(self, rank, device, world_size,
+    def __init__(self,
             net, criterion, train_loader,
-            optim='SGD', optim_params=None, optim_state_dict=None,
+            device=None, optim='SGD',
+            optim_params=None, optim_state_dict=None,
             lr_scheduler=False, lr_sched_params=None,
             verbal=True, print_interval=100, cache_dir='./checkpoints'):
 
@@ -58,9 +57,11 @@ class DistributedLearningEngine(State):
 
         self._dawn = time.time()
 
-        self._rank = rank
-        self._device = torch.device(device)
-        self._world_size = world_size
+        self._rank = dist.get_rank()
+        self._device = torch.device(device) if device is not None else torch.device(self._rank)
+        # Set the default device
+        # NOTE Removing this line causes non-master subprocesses stuck at data loading
+        torch.cuda.set_device(self._device)
 
         self._criterion = criterion if not isinstance(criterion, torch.nn.Module) \
             else criterion.to(device)
@@ -159,8 +160,8 @@ class DistributedLearningEngine(State):
 
     def _on_start_iteration(self):
         self._state.iteration += 1
-        self._state.inputs = relocate_to_cuda(self._state.inputs, self._device)
-        self._state.targets = relocate_to_cuda(self._state.targets, self._device)
+        self._state.inputs = relocate_to_cuda(self._state.inputs, self._device, non_blocking=True)
+        self._state.targets = relocate_to_cuda(self._state.targets, self._device, non_blocking=True)
 
     def _on_end_iteration(self):
         # Print stats in the master process
@@ -180,8 +181,8 @@ class DistributedLearningEngine(State):
 
     def _print_statistics(self):
         running_loss = self._state.running_loss.mean()
-        t_data = self._state.t_data.sum() / self._world_size
-        t_iter = self._state.t_iteration.sum() / self._world_size
+        t_data = self._state.t_data.mean()
+        t_iter = self._state.t_iteration.mean()
 
         # Print stats in the master process
         if self._rank == 0:
