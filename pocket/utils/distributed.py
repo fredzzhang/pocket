@@ -102,7 +102,7 @@ class SyncedNumericalMeter(NumericalMeter):
 def all_gather(data):
     """
     Run all_gather on arbitrary picklable data (not necessarily tensors)
-    Adapted from https://github.com/pytorch/vision/blob/master/references/detection/utils.py
+    https://github.com/pytorch/vision/blob/master/references/detection/utils.py
 
     Args:
         data: any picklable object
@@ -113,15 +113,10 @@ def all_gather(data):
     if world_size == 1:
         return [data]
 
-    not_tensor = type(data) is not torch.Tensor
-
-    if not_tensor:
-        # serialized to a Tensor
-        buffer = pickle.dumps(data)
-        storage = torch.ByteStorage.from_buffer(buffer)
-        tensor = torch.ByteTensor(storage).to("cuda")
-    else:
-        tensor = data.to("cuda")
+    # serialized to a Tensor
+    buffer = pickle.dumps(data)
+    storage = torch.ByteStorage.from_buffer(buffer)
+    tensor = torch.ByteTensor(storage).to("cuda")
 
     # obtain Tensor size of each rank
     local_size = torch.tensor([tensor.numel()], device="cuda")
@@ -141,11 +136,8 @@ def all_gather(data):
         tensor = torch.cat((tensor, padding), dim=0)
     dist.all_gather(tensor_list, tensor)
 
-    if not_tensor:
-        data_list = []
-        for size, tensor in zip(size_list, tensor_list):
-            buffer = tensor.cpu().numpy().tobytes()[:size]
-            data_list.append(pickle.loads(buffer))
-        return data_list
-    else:
-        return [tensor.cpu()[:size] for size, tensor in zip(size_list, tensor_list)]
+    data_list = []
+    for size, tensor in zip(size_list, tensor_list):
+        buffer = tensor.cpu().numpy().tobytes()[:size]
+        data_list.append(pickle.loads(buffer))
+    return data_list
