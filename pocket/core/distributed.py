@@ -182,8 +182,8 @@ class DistributedLearningEngine(State):
 
     def _print_statistics(self):
         running_loss = self._state.running_loss.mean()
-        t_data = self._state.t_data.mean()
-        t_iter = self._state.t_iteration.mean()
+        t_data = self._state.t_data.sum()
+        t_iter = self._state.t_iteration.sum()
 
         # Print stats in the master process
         if self._rank == 0:
@@ -192,7 +192,7 @@ class DistributedLearningEngine(State):
             print(
                 "Epoch [{}/{}], Iter. [{}/{}], "
                 "Loss: {:.4f}, "
-                "Time[Data/Iter.]: [{:.4f}s/{:.4f}s]".format(
+                "Time[Data/Iter.]: [{:.2f}s/{:.2f}s]".format(
                 self._state.epoch, self.epochs,
                 str(self._state.iteration - num_iter * (self._state.epoch - 1)).zfill(n_d),
                 num_iter, running_loss, t_data, t_iter
