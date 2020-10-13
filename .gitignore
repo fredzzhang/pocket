@@ -11,5 +11,5 @@ build
 .DS_Store
 
 # Generated cache
-examples/checkpoints
-examples/data
+checkpoints
+data
