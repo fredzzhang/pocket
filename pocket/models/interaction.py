@@ -26,18 +26,13 @@ class InteractionHead(nn.Module):
         human_idx(int): The index of human/person class in all objects
 
     [OPTIONAL ARGS]
-        box_score_thresh_h(float): The threshold used to filter out low quality human detections
-        box_score_thresh_o(flaot): The threshold used to filter out low quality object detections
-        box_nms_thresh(float): NMS threshold to filter object detections during evaluation
+        box_nms_thresh(float): NMS threshold
     """
     def __init__(self,
                 box_roi_pool,
                 box_pair_head,
                 box_pair_predictor,
                 human_idx,
-                # Parameters for preprocessing
-                box_score_thresh_h=0.6,
-                box_score_thresh_o=0.3,
                 box_nms_thresh=0.5
                 ):
         
@@ -48,9 +43,6 @@ class InteractionHead(nn.Module):
         self.box_pair_predictor = box_pair_predictor
 
         self.human_idx = human_idx
-        
-        self.box_score_thresh_h = box_score_thresh_h
-        self.box_score_thresh_o = box_score_thresh_o
         self.box_nms_thresh = box_nms_thresh
 
     def preprocess(self, detections, targets):
@@ -70,21 +62,6 @@ class InteractionHead(nn.Module):
             labels = detection['labels']
             scores = detection['scores']
 
-            # Filter out low scoring human boxes
-            idx = torch.nonzero(labels == self.human_idx).squeeze(1)
-            keep_idx = idx[torch.nonzero(scores[idx] >= self.box_score_thresh_h).squeeze(1)]
-
-            # Filter out low scoring object boxes
-            idx = torch.nonzero(labels != self.human_idx).squeeze(1)
-            keep_idx = torch.cat([
-                keep_idx,
-                idx[torch.nonzero(scores[idx] >= self.box_score_thresh_o).squeeze(1)]
-            ])
-
-            boxes = boxes[keep_idx].view(-1, 4)
-            scores = scores[keep_idx].view(-1)
-            labels = labels[keep_idx].view(-1)
-
             # Append ground truth during training
             if self.training:
                 target = targets[b_idx]
@@ -96,16 +73,15 @@ class InteractionHead(nn.Module):
                     target["object"],
                     labels
                 ])
-            # Skip NMS during training as part of data augmentation
-            else:
-                # Class-wise non-maximum suppresion
-                keep_idx = box_ops.batched_nms(
-                    boxes, scores, labels, 
-                    self.box_nms_thresh
-                )
-                boxes = boxes[keep_idx].view(-1, 4)
-                scores = scores[keep_idx].view(-1)
-                labels = labels[keep_idx].view(-1)
+
+            # Class-wise non-maximum suppression
+            keep_idx = box_ops.batched_nms(
+                boxes, scores, labels,
+                self.box_nms_thresh
+            )
+            boxes = boxes[keep_idx].view(-1, 4)
+            scores = scores[keep_idx].view(-1)
+            labels = labels[keep_idx].view(-1)
 
             results.append(dict(boxes=boxes, labels=labels, scores=scores))
 
