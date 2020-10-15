@@ -65,7 +65,7 @@ class InteractionHead(nn.Module):
             "object": Tensor[L] Object class index
         """
         results = []
-        for detection in detections:
+        for b_idx, detection in enumerate(detections):
             boxes = detection['boxes']
             labels = detection['labels']
             scores = detection['scores']
@@ -87,10 +87,11 @@ class InteractionHead(nn.Module):
 
             # Append ground truth during training
             if self.training:
-                n = targets["boxes_h"].shape[0]
-                boxes = torch.cat([targets["boxes_h"], targets["boxes_o"], boxes])
+                target = targets[b_idx]
+                n = target["boxes_h"].shape[0]
+                boxes = torch.cat([target["boxes_h"], target["boxes_o"], boxes])
                 scores = torch.cat([torch.ones(2 * n), scores])
-                labels = torch.cat([self.human_idx * torch.ones(n), targets["object"], labels])
+                labels = torch.cat([self.human_idx * torch.ones(n), target["object"], labels])
             # Skip NMS during training as part of data augmentation
             else:
                 # Class-wise non-maximum suppresion
