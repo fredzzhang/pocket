@@ -9,8 +9,10 @@ Australian Centre for Robotic Vision
 
 import os
 import pickle
+
 from PIL import Image
 from torch.utils.data import Dataset
+from typing import Any, Callable, List, Optional, Tuple
 
 class DataDict(dict):
     r"""
@@ -62,12 +64,35 @@ class DataDict(dict):
     def is_empty(self):
         return not bool(len(self))
 
+class StandardTransform:
+    """https://github.com/pytorch/vision/blob/master/torchvision/datasets/vision.py"""
 
-# Define identity mapping at the top level to make it picklable
-def I(x):
-    return x
-def I2(x, y):
-    return x, y
+    def __init__(self, transform: Optional[Callable] = None, target_transform: Optional[Callable] = None) -> None:
+        self.transform = transform
+        self.target_transform = target_transform
+
+    def __call__(self, inputs: Any, target: Any) -> Tuple[Any, Any]:
+        if self.transform is not None:
+            inputs = self.transform(inputs)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+        return inputs, target
+
+    def _format_transform_repr(self, transform: Callable, head: str) -> List[str]:
+        lines = transform.__repr__().splitlines()
+        return (["{}{}".format(head, lines[0])] +
+                ["{}{}".format(" " * len(head), line) for line in lines[1:]])
+
+    def __repr__(self) -> str:
+        body = [self.__class__.__name__]
+        if self.transform is not None:
+            body += self._format_transform_repr(self.transform,
+                                                "Transform: ")
+        if self.target_transform is not None:
+            body += self._format_transform_repr(self.target_transform,
+                                                "Target transform: ")
+
+        return '\n'.join(body)
 
 class ImageDataset(Dataset):
     """
@@ -84,9 +109,15 @@ class ImageDataset(Dataset):
     """
     def __init__(self, root, transform=None, target_transform=None, transforms=None):
         self._root = root
-        self._transform = I if transform is None else transform
-        self._target_transform = I if target_transform is None else target_transform
-        self._transforms = I2 if transforms is None else transforms
+        self._transform = transform
+        self._target_transform = target_transform
+        if transforms is None:
+            self._transforms = StandardTransform(transform, target_transform)
+        elif transform is not None or target_transform is not None:
+            print("WARNING: Argument transforms is given, transform/target_transform are ignored.")
+            self._transforms = transforms
+        else:
+            self._transforms = transforms
 
     def __len__(self):
         raise NotImplementedError
