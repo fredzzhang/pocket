@@ -62,6 +62,13 @@ class DataDict(dict):
     def is_empty(self):
         return not bool(len(self))
 
+
+# Define identity mapping at the top level to make it picklable
+def I(x):
+    return x
+def I2(x, y):
+    return x, y
+
 class ImageDataset(Dataset):
     """
     Base class for image dataset
@@ -77,12 +84,9 @@ class ImageDataset(Dataset):
     """
     def __init__(self, root, transform=None, target_transform=None, transforms=None):
         self._root = root
-        self._transform = transform if transform is not None \
-            else lambda a: a
-        self._target_transform = target_transform if target_transform is not None \
-            else lambda a: a
-        self._transforms = transforms if transforms is not None \
-            else lambda a, b: (self._transform(a), self._target_transform(b))
+        self._transform = I if transform is None else transform
+        self._target_transform = I if target_transform is None else target_transform
+        self._transforms = I2 if transforms is None else transforms
 
     def __len__(self):
         raise NotImplementedError
