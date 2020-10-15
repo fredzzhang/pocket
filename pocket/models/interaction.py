@@ -90,8 +90,12 @@ class InteractionHead(nn.Module):
                 target = targets[b_idx]
                 n = target["boxes_h"].shape[0]
                 boxes = torch.cat([target["boxes_h"], target["boxes_o"], boxes])
-                scores = torch.cat([torch.ones(2 * n), scores])
-                labels = torch.cat([self.human_idx * torch.ones(n), target["object"], labels])
+                scores = torch.cat([torch.ones(2 * n, device=scores.device), scores])
+                labels = torch.cat([
+                    self.human_idx * torch.ones(n, device=labels.device).long(),
+                    target["object"],
+                    labels
+                ])
             # Skip NMS during training as part of data augmentation
             else:
                 # Class-wise non-maximum suppresion
