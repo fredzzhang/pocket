@@ -97,15 +97,14 @@ class InteractionHead(nn.Module):
                     labels
                 ])
             # Skip NMS during training as part of data augmentation
-            else:
                 # Class-wise non-maximum suppresion
-                keep_idx = box_ops.batched_nms(
-                    boxes, scores, labels, 
-                    self.box_nms_thresh
-                )
-                boxes = boxes[keep_idx].view(-1, 4)
-                scores = scores[keep_idx].view(-1)
-                labels = labels[keep_idx].view(-1)
+            keep_idx = box_ops.batched_nms(
+                boxes, scores, labels, 
+                self.box_nms_thresh
+            )
+            boxes = boxes[keep_idx].view(-1, 4)
+            scores = scores[keep_idx].view(-1)
+            labels = labels[keep_idx].view(-1)
 
             results.append(dict(boxes=boxes, labels=labels, scores=scores))
 
