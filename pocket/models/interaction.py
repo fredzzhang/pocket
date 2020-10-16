@@ -96,14 +96,14 @@ class InteractionHead(nn.Module):
             box_pair_labels[i, j]
         )
 
-    def postprocess(self, scores, boxes_h, boxes_o, labels=None):
+    def postprocess(self, scores, boxes_h, boxes_o, object_class, labels=None):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
         scores = scores.split(num_boxes)
         if labels is None:
             labels = [[] for _ in range(len(num_boxes))]
 
         results = []
-        for s, b_h, b_o, l in zip(scores, boxes_h, boxes_o, labels):
+        for s, b_h, b_o, o, l in zip(scores, boxes_h, boxes_o, object_class, labels):
             # Remove irrelevant classes
             keep_cls = [row.nonzero().squeeze(1) for row in s]
             # Remove box pairs without predictions
@@ -117,11 +117,13 @@ class InteractionHead(nn.Module):
             result_dict = dict(
                 boxes_h=b_h[box_keep],
                 boxes_o=b_o[box_keep],
+                object=o[box_keep],
                 labels=list(keep_idx.values()),
                 scores=[s[k, v] for k, v in keep_idx.items()]
             )
-            if self.training:
-                result_dict["gt_labels"] = [l[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
+            # If binary labels are provided
+            if len(l):
+                result_dict["gt_labels"] = [l[k, v] for k, v in keep_idx.items()]
 
             results.append(result_dict)
 
@@ -145,8 +147,11 @@ class InteractionHead(nn.Module):
             results(list[dict]): During evaluation, return dicts of detected interacitons
                 "boxes_h": Tensor[M, 4]
                 "boxes_o": Tensor[M, 4]
+                "object": Tensor[M] Object types in each pair
                 "labels": list(Tensor) The predicted label indices. A list of length M.
                 "scores": list(Tensor) The predcited scores. A list of length M. 
+                "gt_labels": list(Tensor): Binary labels. One if predicted label index is correct,
+                    zero otherwise. This is only returned when targets are given
             During training, the classification loss is appended to the end of the list
         """
         if self.training:
@@ -159,7 +164,8 @@ class InteractionHead(nn.Module):
 
         box_features = self.box_roi_pool(features, box_coords, image_shapes)
 
-        box_pair_features, boxes_h, boxes_o, box_pair_labels, box_pair_prior = self.box_pair_head(
+        box_pair_features, boxes_h, boxes_o, object_class,\
+        box_pair_labels, box_pair_prior = self.box_pair_head(
             features, box_features,
             box_coords, box_labels, box_scores, targets
         )
@@ -170,7 +176,10 @@ class InteractionHead(nn.Module):
 
         interaction_scores = self.box_pair_predictor(box_pair_features, box_pair_prior)
 
-        results = self.postprocess(interaction_scores, boxes_h, boxes_o, box_pair_labels)
+        results = self.postprocess(
+            interaction_scores, boxes_h, boxes_o,
+            object_class, box_pair_labels
+        )
         # All human-object pairs have near zero scores
         if len(results) == 0:
             return results
