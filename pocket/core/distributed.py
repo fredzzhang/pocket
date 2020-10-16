@@ -58,6 +58,7 @@ class DistributedLearningEngine(State):
         self._dawn = time.time()
 
         self._rank = dist.get_rank()
+        self._world_size = dist.get_world_size()
         self._device = torch.device(device) if device is not None else torch.device(self._rank)
         # Set the default device
         # NOTE Removing this line causes non-master subprocesses stuck at data loading
@@ -182,8 +183,8 @@ class DistributedLearningEngine(State):
 
     def _print_statistics(self):
         running_loss = self._state.running_loss.mean()
-        t_data = self._state.t_data.sum()
-        t_iter = self._state.t_iteration.sum()
+        t_data = self._state.t_data.sum() / self._world_size
+        t_iter = self._state.t_iteration.sum() / self._world_size
 
         # Print stats in the master process
         if self._rank == 0:
