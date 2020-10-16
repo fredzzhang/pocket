@@ -142,7 +142,7 @@ class InteractionHead(nn.Module):
                 "boxes_h": Tensor[N, 4]
                 "boxes_o": Tensor[N, 4]
                 "object": Tensor[N] Object class index for the object in each pair
-                "target": Tensor[N] Target class index for each pair
+                "labels": Tensor[N] Target class index for each pair
         Returns:
             results(list[dict]): During evaluation, return dicts of detected interacitons
                 "boxes_h": Tensor[M, 4]
