@@ -112,6 +112,8 @@ class InteractionHead(nn.Module):
             }
 
             box_keep = list(keep_idx.keys())
+            if len(box_keep) == 0:
+                continue
             result_dict = dict(
                 boxes_h=b_h[box_keep],
                 boxes_o=b_o[box_keep],
@@ -169,6 +171,9 @@ class InteractionHead(nn.Module):
         interaction_scores = self.box_pair_predictor(box_pair_features, box_pair_prior)
 
         results = self.postprocess(interaction_scores, boxes_h, boxes_o, box_pair_labels)
+        # All human-object pairs have near zero scores
+        if len(results) == 0:
+            return results
 
         if self.training:
             results.append(self.compute_interaction_classification_loss(
