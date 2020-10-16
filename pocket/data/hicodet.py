@@ -9,6 +9,7 @@ Australian Centre for Robotic Vision
 
 import os
 import json
+import numpy as np
 
 from .base import ImageDataset
 
@@ -47,7 +48,13 @@ class HICODet(ImageDataset):
             i(int): Index to an image
         
         Returns:
-            tuple[image, target]
+            tuple[image, target]: By default, the tuple consists of a PIL image and a
+            dict with the following keys:
+                "boxes_h": list[list[4]]
+                "boxes_o": list[list[4]]
+                "hoi":: list[N]
+                "verb": list[N]
+                "object": list[N]
         """
         intra_idx = self._idx[i]
         return self._transforms(
@@ -90,6 +97,22 @@ class HICODet(ImageDataset):
             list[list[3]]
         """
         return self._class_corr.copy()
+
+    @property
+    def object_n_verb_to_interaction(self):
+        """
+        The interaction classes corresponding to an object-verb pair
+
+        HICODet.object_n_verb_to_interaction[obj_idx][verb_idx] gives interaction class
+        index if the pair is valid, None otherwise
+
+        Returns:
+            list[list[117]]
+        """
+        lut = np.full([self.num_object_cls, self.num_action_cls], None)
+        for i, j, k in self._class_corr:
+            lut[j, k] = i
+        return lut.tolist()
 
     @property
     def object_to_interaction(self):
