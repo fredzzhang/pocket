@@ -106,12 +106,17 @@ class InteractionHead(nn.Module):
         for s, b_h, b_o, l in zip(scores, boxes_h, boxes_o, labels):
             # Remove irrelevant classes
             keep_cls = [row.nonzero().squeeze(1) for row in s]
+            # Remove box pairs without predictions
+            keep_idx = {
+                k: v for k, v in enumerate(keep_cls) if len(v)
+            }
 
+            box_keep = list(keep_idx.keys())
             result_dict = dict(
-                boxes_h=b_h,
-                boxes_o=b_o,
-                labels=keep_cls,
-                scores=[s[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
+                boxes_h=b_h[box_keep],
+                boxes_o=b_o[box_keep],
+                labels=list(keep_idx.values()),
+                scores=[s[k, v] for k, v in keep_idx.items()]
             )
             if self.training:
                 result_dict["gt_labels"] = [l[i, pred_cls] for i, pred_cls in enumerate(keep_cls)]
