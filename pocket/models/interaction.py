@@ -24,6 +24,8 @@ class InteractionHead(nn.Module):
         box_pair_head(nn.Module): Module that constructs and computes box pair features
         box_pair_logistic(nn.Module): Module that classifies box pairs
         human_idx(int): The index of human/person class in all objects
+        max_human(int): Number of human detections to keep in each image
+        max_object(int): Number of object (excluding human) detections to keep in each image
 
     [OPTIONAL ARGS]
         box_nms_thresh(float): NMS threshold
@@ -33,7 +35,9 @@ class InteractionHead(nn.Module):
                 box_pair_head,
                 box_pair_predictor,
                 human_idx,
-                box_nms_thresh=0.5
+                box_nms_thresh=0.5,
+                max_human=10,
+                max_object=10
                 ):
         
         super().__init__()
@@ -44,6 +48,9 @@ class InteractionHead(nn.Module):
 
         self.human_idx = human_idx
         self.box_nms_thresh = box_nms_thresh
+
+        self.max_human = max_human
+        self.max_object = max_object
 
     def preprocess(self, detections, targets):
         """
@@ -83,7 +90,26 @@ class InteractionHead(nn.Module):
             scores = scores[keep_idx].view(-1)
             labels = labels[keep_idx].view(-1)
 
-            results.append(dict(boxes=boxes, labels=labels, scores=scores))
+            # Sort detections by scores
+            sorted_idx = torch.argsort(scores, descending=True)
+            boxes = boxes[sorted_idx]
+            scores = scores[sorted_idx]
+            labels = labels[sorted_idx]
+            # Keep a fixed number of detections
+            h_idx = torch.nonzero(labels == self.human_idx).squeeze(1)
+            o_idx = torch.nonzero(labels != self.human_idx).squeeze(1)
+            if len(h_idx) > self.max_human:
+                h_idx = h_idx[:self.max_human]
+            if len(o_idx) > self.max_object:
+                o_idx = o_idx[:self.max_object]
+            # Permute humans to the top
+            keep_idx = torch.cat([h_idx, o_idx])
+
+            results.append(dict(
+                boxes=boxes[keep_idx].view(-1, 4),
+                labels=labels[keep_idx].view(-1),
+                scores=scores[keep_idx].view(-1)
+            ))
 
         return results
 
