@@ -173,6 +173,9 @@ class InteractionHead(nn.Module):
         # No valid human-object pairs were formed
         if len(box_pair_features) == 0:
             return None
+        else:
+            box_pair_features = torch.cat(box_pair_features)
+            box_pair_prior = torch.cat(box_pair_prior)
 
         interaction_scores = self.box_pair_predictor(box_pair_features, box_pair_prior)
 
