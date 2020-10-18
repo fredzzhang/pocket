@@ -128,9 +128,9 @@ class DistributedLearningEngine(State):
             for batch in self._train_loader:
                 self._state.inputs = batch[:-1]
                 self._state.targets = batch[-1]
+                self._on_start_iteration()
                 self._state.t_data.append(time.time() - timestamp)
 
-                self._on_start_iteration()
                 self._on_each_iteration()
                 self._state.running_loss.append(self._state.loss.item())
                 self._on_end_iteration()
