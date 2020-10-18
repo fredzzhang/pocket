@@ -211,7 +211,7 @@ class InteractionHead(nn.Module):
         )
         # All human-object pairs have near zero scores
         if len(results) == 0:
-            return results
+            return None
 
         if self.training:
             results.append(self.compute_interaction_classification_loss(
