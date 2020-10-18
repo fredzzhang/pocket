@@ -65,7 +65,7 @@ class DistributedLearningEngine(State):
         torch.cuda.set_device(self._device)
 
         self._criterion = criterion if not isinstance(criterion, torch.nn.Module) \
-            else criterion.to(device)
+            else criterion.cuda()
         self._train_loader = train_loader
         self._verbal = verbal
         self._print_interval = print_interval
@@ -78,7 +78,7 @@ class DistributedLearningEngine(State):
         if hasattr(train_loader, 'pin_memory'):
             train_loader.pin_memory = True
         # Relocate model to designated device
-        net.cuda(device)
+        net.cuda()
 
         # Initialize optimizer
         net_params = [p for p in net.parameters() if p.requires_grad]
@@ -92,7 +92,7 @@ class DistributedLearningEngine(State):
             if optim == 'SGD' \
             else torch.optim.Adam(net_params, **optim_params)
 
-        self._state.net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[device])
+        self._state.net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[self._device])
 
         # Load optimzer state dict if provided
         if optim_state_dict is not None:
@@ -101,7 +101,7 @@ class DistributedLearningEngine(State):
             for state in self._state.optimizer.state.values():
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
-                        state[k] = v.to(self._device)
+                        state[k] = v.cuda()
         self._state.epoch = 0
         self._state.iteration = 0
 
@@ -131,8 +131,6 @@ class DistributedLearningEngine(State):
                 self._state.t_data.append(time.time() - timestamp)
 
                 self._on_start_iteration()
-                # Force network mode
-                self._state.net.train()
                 self._on_each_iteration()
                 self._state.running_loss.append(self._state.loss.item())
                 self._on_end_iteration()
@@ -150,6 +148,8 @@ class DistributedLearningEngine(State):
 
     def _on_start_epoch(self):
         self._state.epoch += 1
+        # Force network mode
+        self._state.net.train()
         # Update random seeds for sampler
         self._train_loader.sampler.set_epoch(self._state.epoch)
 
@@ -162,8 +162,8 @@ class DistributedLearningEngine(State):
 
     def _on_start_iteration(self):
         self._state.iteration += 1
-        self._state.inputs = relocate_to_cuda(self._state.inputs, self._device, non_blocking=True)
-        self._state.targets = relocate_to_cuda(self._state.targets, self._device, non_blocking=True)
+        self._state.inputs = relocate_to_cuda(self._state.inputs, non_blocking=True)
+        self._state.targets = relocate_to_cuda(self._state.targets, non_blocking=True)
 
     def _on_end_iteration(self):
         # Print stats in the master process
