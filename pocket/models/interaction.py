@@ -122,10 +122,10 @@ class InteractionHead(nn.Module):
             box_pair_labels[i, j]
         )
 
-    def postprocess(self, scores, boxes_h, boxes_o, object_class, labels=None):
+    def postprocess(self, scores, boxes_h, boxes_o, object_class, labels):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
         scores = scores.split(num_boxes)
-        if labels is None:
+        if len(labels) == 0:
             labels = [[] for _ in range(len(num_boxes))]
 
         results = []
