@@ -24,13 +24,14 @@ class OnlineWeightAdjustment:
         reprstr += ')'
         return reprstr
 
-    def compute_weights(self, class_idx, labels):
+    def compute_weights(self, class_idx, labels, num_iter=10):
         """
         Compute weight for each logit
 
         Arguments:
             class_idx(LongTensor[N])
             labels(FloatTensor[N]): Binary labels
+            num_iter(int): Number of iterations to update the weights
         Returns:
             weights(FloatTensor[N]): Weights to be applied to each logit
         """
@@ -39,6 +40,7 @@ class OnlineWeightAdjustment:
         labels = labels.clone().cpu()
 
         weights = torch.ones_like(labels)
+        modify_idx = []; parameters = []
         for i in torch.nonzero(self._register).squeeze(1):
             bias = self._register[i]
 
@@ -47,15 +49,28 @@ class OnlineWeightAdjustment:
             if not len(logits_idx):
                 continue
             if bias > 0:
-                keep_idx = logits_idx[torch.nonzero(labels[logits_idx] == 0)]
+                keep_idx = logits_idx[torch.nonzero(labels[logits_idx] == 0)].squeeze(1)
             else:
-                keep_idx = logits_idx[torch.nonzero(labels[logits_idx])]
+                keep_idx = logits_idx[torch.nonzero(labels[logits_idx])].squeeze(1)
             # Skip when there are not logits that contribute positively to the balance
             if not len(keep_idx):
                 continue
-            n = len(keep_idx); n_ = len(logits_idx) - n
-            # Assign weight to cancel out bias
-            weights[keep_idx] = (bias.abs() + n_) / n
+            p = len(keep_idx); n = len(logits_idx) - p
+            # Log indices and parameters to compute weights
+            modify_idx.append(keep_idx)
+            parameters.append(torch.cat([
+                p * torch.ones(p, 1), n * torch.ones(p, 1), bias.abs().repeat(p, 1)
+            ], 1))
+
+        if len(modify_idx):
+            modify_idx = torch.cat(modify_idx)
+            p, n, bias = torch.cat(parameters).unbind(1)
+            # Iteratively update the weights
+            for _ in range(num_iter):
+                sum_ = weights.sum().item()
+                weights[modify_idx] = (n + sum_ * bias) / p
+        # Normalise the weights
+        weights /= weights.sum()
 
         return weights.to(device)
 
