@@ -11,8 +11,9 @@ import torch
 import torchvision.ops.boxes as box_ops
 
 from torch import nn
-from torchvision.ops._utils import _cat
 from torchvision.models.detection import transform
+
+from ..utils import OnlineWeightAdjustment
 
 class InteractionHead(nn.Module):
     """Interaction head that constructs and classifies box pairs
@@ -35,6 +36,7 @@ class InteractionHead(nn.Module):
                 box_pair_head,
                 box_pair_predictor,
                 human_idx,
+                num_classes,
                 box_nms_thresh=0.5,
                 max_human=10,
                 max_object=10
@@ -46,11 +48,15 @@ class InteractionHead(nn.Module):
         self.box_pair_head = box_pair_head
         self.box_pair_predictor = box_pair_predictor
 
+        self.num_classes = num_classes
         self.human_idx = human_idx
         self.box_nms_thresh = box_nms_thresh
 
         self.max_human = max_human
         self.max_object = max_object
+
+        # Adjust weights to balance positive and negative logits
+        self.adjustment = OnlineWeightAdjustment(num_classes)
 
     def preprocess(self, detections, targets):
         """
@@ -114,13 +120,30 @@ class InteractionHead(nn.Module):
         return results
 
     def compute_interaction_classification_loss(self, scores, box_pair_labels):
-        # Ignore irrelevant target classes
-        i, j = scores.nonzero().unbind(1)
+        """
+        Arguments:
+            scores(Tensor[N, K])
+            box_pair_labels(List[Tensor])
+        """
+        total_loss = 0
+        num_boxes = [len(labels) for labels in box_pair_labels]
+        for scores_in_image, labels_in_image in zip(
+            scores.split(num_boxes), box_pair_labels
+        ):
+            # Remove invalid classes for a given object type
+            i, j = scores_in_image.nonzero().unbind(1)
+            loss = nn.functional.binary_cross_entropy(
+                scores_in_image[i, j], labels_in_image[i, j], reduction='none'
+            )
+            # Compute weights to balance positive-negative ratio
+            # NOTE The weights are already normalised
+            weights = self.adjustment.compute_weights(j, labels_in_image[i, j])
+            # Update the bias register
+            self.adjustment.update_register(j, labels_in_image[i, j], weights)
 
-        return nn.functional.binary_cross_entropy(
-            scores[i, j],
-            box_pair_labels[i, j]
-        )
+            total_loss += (loss * weights)
+
+        return total_loss / len(num_boxes)
 
     def postprocess(self, scores, boxes_h, boxes_o, object_class, labels):
         num_boxes = [len(boxes_per_image) for boxes_per_image in boxes_h]
@@ -215,7 +238,7 @@ class InteractionHead(nn.Module):
 
         if self.training:
             results.append(self.compute_interaction_classification_loss(
-                interaction_scores, _cat(box_pair_labels)
+                interaction_scores, box_pair_labels
             ))
 
         return results
