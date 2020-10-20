@@ -1,16 +1,85 @@
 """
-Ad hoc loss functions
+Loss functions and related utilities
 
-Written by Frederic Zhang
-Australian National Univeristy
+Fred Zhang <frederic.zhang@anu.edu.au>
 
-Last updated in Sept. 2019
+The Australian National University
+Australian Centre for Robotic Vision
 """
 
 import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+class OnlineWeightAdjustment:
+    def __init__(self, num_classes: int):
+        self.num_classes = num_classes
+        self._register = torch.zeros(num_classes)
+
+    def __repr__(self):
+        reprstr = self.__class__.__name__ + '('
+        reprstr += 'num_classes='
+        reprstr += repr(self.num_classes)
+        reprstr += ')'
+        return reprstr
+
+    def compute_weights(self, class_idx, labels):
+        """
+        Compute weight for each logit
+
+        Arguments:
+            class_idx(LongTensor[N])
+            labels(FloatTensor[N]): Binary labels
+        Returns:
+            weights(FloatTensor[N]): Weights to be applied to each logit
+        """
+        device = labels.device
+        class_idx = class_idx.clone().cpu()
+        labels = labels.clone().cpu()
+
+        weights = torch.ones_like(labels)
+        for i in torch.nonzero(self._register).squeeze(1):
+            bias = self._register[i]
+
+            logits_idx = torch.nonzero(class_idx == i).squeeze(1)
+            # Skip when there are not logits from the current class
+            if not len(logits_idx):
+                continue
+            if bias > 0:
+                keep_idx = logits_idx[torch.nonzero(labels[logits_idx] == 0)]
+            else:
+                keep_idx = logits_idx[torch.nonzero(labels[logits_idx])]
+            # Skip when there are not logits that contribute positively to the balance
+            if not len(keep_idx):
+                continue
+            n = len(keep_idx); n_ = len(logits_idx) - n
+            # Assign weight to cancel out bias
+            weights[keep_idx] = (bias.abs() + n_) / n
+
+        return weights.to(device)
+
+    def update_register(self, class_idx, labels, weights):
+        """
+        Update register
+
+        Arguments:
+            class_idx(LongTensor[N])
+            labels(FloatTensor[N]): Binary labels
+            weights(FloatTensor[N]): Weights applied to each logit
+        """
+        class_idx = class_idx.clone().cpu()
+        weights = weights.clone().cpu()
+
+        labels = labels.clone().cpu()
+        labels = labels * 2 - 1
+
+        total_bias = labels * weights
+
+        unique_class = class_idx.unique()
+        for idx in unique_class:
+            logits_idx = torch.nonzero(class_idx == idx).squeeze(1)
+            self._register[idx] += (total_bias[logits_idx]).sum()
 
 class PairwiseSoftMarginLoss(nn.Module):
     r"""
