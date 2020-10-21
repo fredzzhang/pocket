@@ -133,15 +133,15 @@ class InteractionHead(nn.Module):
             # Remove invalid classes for a given object type
             i, j = scores_in_image.nonzero().unbind(1)
             loss = nn.functional.binary_cross_entropy(
-                scores_in_image[i, j], labels_in_image[i, j], reduction='none'
+                scores_in_image[i, j], labels_in_image[i, j], reduction='mean'
             )
             # Compute weights to balance positive-negative ratio
             # NOTE The weights are already normalised
-            weights = self.adjustment.compute_weights(j, labels_in_image[i, j])
+            # weights = self.adjustment.compute_weights(j, labels_in_image[i, j])
             # Update the bias register
-            self.adjustment.update_register(j, labels_in_image[i, j], weights)
+            # self.adjustment.update_register(j, labels_in_image[i, j], weights)
 
-            total_loss += loss.dot(weights)
+            total_loss += loss
 
         return total_loss / len(num_boxes)
 
