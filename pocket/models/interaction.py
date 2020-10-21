@@ -215,7 +215,7 @@ class InteractionHead(nn.Module):
 
         box_pair_features, boxes_h, boxes_o, object_class,\
         box_pair_labels, box_pair_prior = self.box_pair_head(
-            features, box_features,
+            features, image_shapes, box_features,
             box_coords, box_labels, box_scores, targets
         )
 
