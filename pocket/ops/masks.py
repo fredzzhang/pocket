@@ -34,7 +34,7 @@ def generate_masks(boxes, h, w):
         raise AssertionError("Image width and height should both of integers")
     
     if len(boxes):
-        assert torch.all(boxes > 0)
+        assert torch.all(boxes >= 0)
         assert boxes[:, 2].max() <= w
         assert boxes[:, 3].max() <= h
     else:
