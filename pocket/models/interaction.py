@@ -141,7 +141,7 @@ class InteractionHead(nn.Module):
             # Update the bias register
             self.adjustment.update_register(j, labels_in_image[i, j], weights)
 
-            total_loss += (loss * weights)
+            total_loss += loss.dot(weights)
 
         return total_loss / len(num_boxes)
 
