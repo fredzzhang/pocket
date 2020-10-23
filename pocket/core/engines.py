@@ -157,9 +157,9 @@ class LearningEngine(State):
             for batch in self._train_loader:
                 self._state.inputs = batch[:-1]
                 self._state.targets = batch[-1]
+                self._on_start_iteration()
                 self._state.t_data.append(time.time() - timestamp)
 
-                self._on_start_iteration()
                 # Force network mode
                 self._state.net.train()
                 self._on_each_iteration()
