@@ -58,7 +58,7 @@ class InteractionHead(nn.Module):
         # Adjust weights to balance positive and negative logits
         self.adjustment = OnlineWeightAdjustment(num_classes)
 
-    def preprocess(self, detections, targets):
+    def preprocess(self, detections, targets, append_gt=None):
         """
         detections(list[dict]): Object detections with following keys 
             "boxes": Tensor[N, 4]
@@ -68,6 +68,8 @@ class InteractionHead(nn.Module):
             "boxes_h" Tensor[L, 4]
             "boxes_o": Tensor[L, 4]
             "object": Tensor[L] Object class index
+        append_gt(bool): If True, ground truth box pairs will be appended into the
+            box list. If None, it will be overriden as the training flag
         """
         results = []
         for b_idx, detection in enumerate(detections):
@@ -76,7 +78,9 @@ class InteractionHead(nn.Module):
             scores = detection['scores']
 
             # Append ground truth during training
-            if self.training:
+            if append_gt is None:
+                append_gt = self.training
+            if append_gt:
                 target = targets[b_idx]
                 n = target["boxes_h"].shape[0]
                 boxes = torch.cat([target["boxes_h"], target["boxes_o"], boxes])
