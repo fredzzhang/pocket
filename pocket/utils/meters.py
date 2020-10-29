@@ -370,9 +370,7 @@ class DetectionAPMeter:
             '11P': 11-point interpolation algorithm prior to voc2010
             'INT': Interpolation algorithm with all points used in voc2010
             'AUC': Precisely as the area under precision-recall curve
-        chunksize(int, optional): The approximate size the given iterable will be split
-            into for each worker. Use -1 to make the argument adaptive to iterable size
-            and number of workers
+        nproc(int, optional): The number of processes used to compute mAP. Default: 20
         output(list[tensor], optinoal): A collection of output scores for K classes
         labels(list[tensor], optinoal): Binary labels
 
@@ -397,7 +395,7 @@ class DetectionAPMeter:
         >>> meter.reset()
 
     """
-    def __init__(self, num_cls, num_gt=None, algorithm='AUC', chunksize=-1, 
+    def __init__(self, num_cls, num_gt=None, algorithm='AUC', nproc=20,
             output=None, labels=None):
         if num_gt is not None and len(num_gt) != num_cls:
             raise AssertionError("Provided ground truth instances"
@@ -407,7 +405,7 @@ class DetectionAPMeter:
         self.num_gt = num_gt if num_gt is not None else \
             [None for _ in range(num_cls)]
         self.algorithm = algorithm
-        self._chunksize = chunksize
+        self._nproc = nproc
 
         is_none = (output is None, labels is None)
         if is_none == (True, True):
@@ -429,7 +427,7 @@ class DetectionAPMeter:
         self._labels_temp = [[] for _ in range(num_cls)]
     
     @classmethod
-    def compute_ap(cls, output, labels, num_gt, algorithm='AUC', chunksize=-1):
+    def compute_ap(cls, output, labels, num_gt, nproc, algorithm='AUC'):
         """
         Compute average precision under the detection setting. Only scores of the 
         predicted classes are retained for each sample. As a result, different classes
@@ -439,10 +437,8 @@ class DetectionAPMeter:
             output(list[FloatTensor])
             labels(list[FloatTensor])
             num_gt(iterable): Number of ground truth instances for each class
+            nproc(int, optional): The number of processes used to compute mAP
             algorithm(str): AP evaluation algorithm
-            chunksize(int, optional): The approximate size the given iterable will be split
-                into for each worker. Use -1 to make the argument adaptive to iterable size
-                and number of workers
         Returns:
             ap(FloatTensor[K])
         """
@@ -461,7 +457,7 @@ class DetectionAPMeter:
         else:
             raise ValueError("Unknown algorithm option {}.".format(algorithm))
 
-        with multiprocessing.Pool() as pool:
+        with multiprocessing.Pool(nproc) as pool:
             for idx, results in enumerate(pool.map(
                 func=cls.compute_ap_for_each,
                 iterable=[(idx, ngt, out, gt, algorithm_handle) 
@@ -563,6 +559,6 @@ class DetectionAPMeter:
         self.reset(keep_old=True)
 
         self.ap, self.max_rec = self.compute_ap(self._output, self._labels, self.num_gt,
-            algorithm=self.algorithm, chunksize=self._chunksize)
+            nproc=self._nproc, algorithm=self.algorithm)
 
         return self.ap
