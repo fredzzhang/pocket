@@ -8,7 +8,10 @@ Australian Centre for Robotic Vision
 """
 
 import torch
-from .. import cpp
+try:
+    from .. import cpp
+except:
+    CPP_COMPILED = False
 
 __all__ = [
     'generate_masks'
@@ -28,6 +31,9 @@ def generate_masks(boxes, h, w):
     Returns:
         Tensor[N, h, w]
     """
+    if not CPP_COMPILED:
+        raise NotImplementedError
+
     if not isinstance(boxes, torch.Tensor):
         raise AssertionError("Provided bounding boxes are not instances of Tensor")
     if not isinstance(h, int) or not isinstance(w, int):
