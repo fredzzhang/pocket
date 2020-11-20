@@ -106,11 +106,6 @@ class LearningEngine(State):
         if not os.path.exists(self._cache_dir):
             os.mkdir(self._cache_dir)
 
-        # Set flags for GPU
-        torch.backends.cudnn.benchmark = torch.cuda.is_available()
-        if hasattr(train_loader, 'pin_memory'):
-            train_loader.pin_memory = torch.cuda.is_available()
-
         self._state.net = torch.nn.DataParallel(net).to(self._device) if self._multigpu \
             else net.to(self._device)
         # Initialize optimizer
