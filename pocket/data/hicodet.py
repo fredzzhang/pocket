@@ -11,7 +11,7 @@ import os
 import json
 import numpy as np
 
-from .base import ImageDataset
+from .base import ImageDataset, DataSubset
 
 class HICODet(ImageDataset):
     """
@@ -207,6 +207,19 @@ class HICODet(ImageDataset):
         return [self._verbs[j] + ' ' + self.objects[i] 
             for _, i, j in self._class_corr]
 
+    def split(self, ratio):
+        """
+        Split the dataset according to given ratio
+
+        Arguments:
+            ratio(float): The percentage of training set between 0 and 1
+        Returns:
+            train(Dataset)
+            val(Dataset)
+        """
+        perm = np.random.permutation(len(self._idx))
+        n = int(len(perm) * ratio)
+        return DataSubset(self, perm[:n]), DataSubset(self, perm[n:])
 
     def filename(self, idx):
         """Return the image file name"""
