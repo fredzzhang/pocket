@@ -73,10 +73,6 @@ class DistributedLearningEngine(State):
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
 
-        # Set flags for GPU
-        torch.backends.cudnn.benchmark = True
-        if hasattr(train_loader, 'pin_memory'):
-            train_loader.pin_memory = True
         # Relocate model to designated device
         net.cuda()
 
