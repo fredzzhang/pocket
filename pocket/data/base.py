@@ -142,3 +142,24 @@ class ImageDataset(Dataset):
     def load_image(self, path):
         """Load an image and apply transform"""
         return Image.open(path)
+
+class DataSubset(Dataset):
+    """
+    A subset of data with access to all attributes of original dataset
+
+    Arguments:
+        dataset(Dataset): Original dataset
+        pool(List[int]): The pool of indices for the subset
+    """
+    def __init__(self, dataset, pool):
+        self.dataset = dataset
+        self.pool = pool
+    def __len__(self):
+        return len(self.pool)
+    def __getitem__(self, idx):
+        return self.dataset[self.pool[idx]]
+    def __getattr__(self, key):
+        if hasattr(self.dataset, key):
+            return getattr(self.dataset, key)
+        else:
+            raise AttributeError("Given dataset has no attribute \'{}\'".format(key))
