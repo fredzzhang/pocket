@@ -144,6 +144,7 @@ class LearningEngine(State):
         self._state.t_iteration = NumericalMeter(maxlen=print_interval)
 
     def __call__(self, n):
+        self.num_epochs = n
         # Train for a specified number of epochs
         self._on_start()
         for _ in range(n):
@@ -201,17 +202,17 @@ class LearningEngine(State):
         self._state.optimizer.step()
 
     def _print_statistics(self):
-        print("[Ep.][Iter.]: [{}][{}] | "
-                "Loss: {:.4f} | "
-                "Time[Data/Iter.]: [{:.4f}s/{:.4f}s]".format(
-                    self._state.epoch, self._state.iteration,
-                    self._state.running_loss.mean(),
-                    self._state.t_data.sum(),
-                    self._state.t_iteration.sum())
-            )
-        self._state.t_iteration.reset()
-        self._state.t_data.reset()
-        self._state.running_loss.reset()
+        num_iter = len(self._train_loader)
+        n_d = len(str(num_iter))
+        print(
+            "Epoch [{}/{}], Iter. [{}/{}], "
+            "Loss: {:.4f}, "
+            "Time[Data/Iter.]: [{:.2f}s/{:.2f}s]".format(
+            self._state.epoch, self.num_epochs,
+            str(self._state.iteration - num_iter * (self._state.epoch - 1)).zfill(n_d),
+            num_iter, self._state.running_loss.mean(),
+            self._state.t_data.sum(), self._state.t_iteration.sum())
+        )
 
     def save_checkpoint(self):
         """Save a checkpoint of the model state"""
@@ -301,19 +302,6 @@ class MultiClassClassificationEngine(LearningEngine):
         >>> # Checkpoints will be saved under ./checkpoints by default, containing 
         >>> # saved model parameters, optimizer statistics and progress
         >>> engine(1)
-
-        => Validation (+9.74s)
-        Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 1.83s
-
-        [Ep.][Iter.]: [1][100] | Loss: 2.2971 | Time[Data/Iter.]: [2.8266s/3.1294s]
-        [Ep.][Iter.]: [1][200] | Loss: 2.2773 | Time[Data/Iter.]: [2.6130s/2.9324s]
-        [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data/Iter.]: [2.3087s/2.6148s]
-        [Ep.][Iter.]: [1][400] | Loss: 2.0142 | Time[Data/Iter.]: [2.1537s/2.4501s]
-
-        => Training (+22.64s)
-        Epoch: 1 | Acc.: 0.3182[19091/60000]
-        => Validation (+24.36s)
-        Epoch: 1 | Acc.: 0.7949[7949/10000] | Loss: 0.7700 | Time: 1.72s
         """
     def __init__(self,
             net,
@@ -457,18 +445,6 @@ class MultiLabelClassificationEngine(LearningEngine):
         >>> # Checkpoints will be saved under ./checkpoints by default, containing 
         >>> # saved model parameters, optimizer statistics and progress
         >>> engine(1)
-
-        => Validation (+64.57s)
-        Epoch: 0 | mAP: 0.0888 | Loss: 6.4674 | Time: 55.74s
-
-        [Ep.][Iter.]: [1][50] | Loss: 0.3516 | Time[Data/Iter.]: [0.8834s/44.9455s]
-        [Ep.][Iter.]: [1][100] | Loss: 0.2623 | Time[Data/Iter.]: [0.0115s/32.8341s]
-        [Ep.][Iter.]: [1][150] | Loss: 0.2550 | Time[Data/Iter.]: [0.0088s/33.2330s]
-
-        => Training (+211.59s)
-        Epoch: 1 | mAP: 0.0929 | Time(eval): 2.91s
-        => Validation (+254.78s)
-        Epoch: 1 | mAP: 0.1319 | Loss: 0.3520 | Time: 43.20s
         """
     def __init__(self,
             net,
