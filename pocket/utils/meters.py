@@ -175,9 +175,17 @@ class AveragePrecisionMeter:
         """
         prec, rec = tuple_
         ap = 0
+        max_rec = rec[-1]
         for idx in range(prec.numel()):
+            # Stop when maximum recall is reached
+            if rec[idx] >= max_rec:
+                break
+            d_x = rec[idx] - rec[idx - 1]
+            # Skip when negative example is registered
+            if d_x == 0:
+                continue
             ap +=  prec[idx] * rec[idx] if idx == 0 \
-                else 0.5 * (prec[idx] + prec[idx - 1]) * (rec[idx] - rec[idx - 1])
+                else 0.5 * (prec[idx] + prec[idx - 1]) * d_x
         return ap
 
     @staticmethod
@@ -190,11 +198,19 @@ class AveragePrecisionMeter:
         """
         prec, rec = tuple_
         ap = 0
+        max_rec = rec[-1]
         for idx in range(prec.numel()):
-            # Precompute max for reuse
+            # Stop when maximum recall is reached
+            if rec[idx] >= max_rec:
+                break
+            d_x = rec[idx] - rec[idx - 1]
+            # Skip when negative example is registered
+            if d_x == 0:
+                continue
+            # Compute interpolated precision
             max_ = prec[idx:].max()
             ap +=  max_ * rec[idx] if idx == 0 \
-                else 0.5 * (max_ + torch.max(prec[idx - 1], max_)) * (rec[idx] - rec[idx - 1])
+                else 0.5 * (max_ + torch.max(prec[idx - 1], max_)) * d_x
         return ap
 
     @staticmethod
