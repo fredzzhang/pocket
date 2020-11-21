@@ -13,6 +13,23 @@ import numpy as np
 
 from .base import ImageDataset, DataSubset
 
+class HICODetSubset(DataSubset):
+    def __init__(self, *args):
+        super().__init__(*args)
+    def filename(self, idx):
+        """Override: return the image file name in the subset"""
+        return self.dataset._filenames[self._idx[self.pool[idx]]]
+    # TODO: Override methods that compute the number of annotations
+    @property
+    def anno_interaction(self):
+        raise NotImplementedError
+    @property
+    def anno_object(self):
+        raise NotImplementedError
+    @property
+    def anno_action(self):
+        raise NotImplementedError
+
 class HICODet(ImageDataset):
     """
     Arguments:
@@ -70,7 +87,6 @@ class HICODet(ImageDataset):
         reprstr += '\")'
         # Ignore the optional arguments
         return reprstr
-
 
     def __str__(self):
         """Return the readable string representation"""
@@ -219,7 +235,7 @@ class HICODet(ImageDataset):
         """
         perm = np.random.permutation(len(self._idx))
         n = int(len(perm) * ratio)
-        return DataSubset(self, perm[:n]), DataSubset(self, perm[n:])
+        return HICODetSubset(self, perm[:n]), HICODetSubset(self, perm[n:])
 
     def filename(self, idx):
         """Return the image file name"""
