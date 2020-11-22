@@ -10,6 +10,7 @@ Australian Centre for Robotic Vision
 import torch
 try:
     from .. import cpp
+    CPP_COMPILED = True
 except:
     CPP_COMPILED = False
 
