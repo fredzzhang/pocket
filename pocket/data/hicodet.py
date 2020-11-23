@@ -18,17 +18,33 @@ class HICODetSubset(DataSubset):
         super().__init__(*args)
     def filename(self, idx):
         """Override: return the image file name in the subset"""
-        return self.dataset._filenames[self._idx[self.pool[idx]]]
-    # TODO: Override methods that compute the number of annotations
+        return self._filenames[self._idx[self.pool[idx]]]
     @property
     def anno_interaction(self):
-        raise NotImplementedError
+        """Override: return the number of annotation for each interaction category"""
+        num_anno = [0 for _ in range(self.num_interation_cls)]
+        print("Compute number of annotaitons...")
+        intra_idx = [self._idx[i] for i in self.pool]
+        for idx in intra_idx:
+            for hoi in self._anno[idx]['hoi']:
+                num_anno[hoi] += 1
+        return num_anno
     @property
     def anno_object(self):
-        raise NotImplementedError
+        """Override: return the number of annotation for each object category"""
+        num_anno = [0 for _ in range(self.num_object_cls)]
+        anno_interaction = self.anno_interaction
+        for corr in self._class_corr:
+            num_anno[corr[1]] += anno_interaction[corr[0]]
+        return num_anno
     @property
     def anno_action(self):
-        raise NotImplementedError
+        """Override: return the number of annotation for each action category"""
+        num_anno = [0 for _ in range(self.num_action_cls)]
+        anno_interaction = self.anno_interaction
+        for corr in self._class_corr:
+            num_anno[corr[2]] += anno_interaction[corr[0]]
+        return num_anno
 
 class HICODet(ImageDataset):
     """
