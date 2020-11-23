@@ -21,9 +21,8 @@ class HICODetSubset(DataSubset):
         return self._filenames[self._idx[self.pool[idx]]]
     @property
     def anno_interaction(self):
-        """Override: return the number of annotation for each interaction category"""
+        """Override: Number of annotated box pairs for each interaction class"""
         num_anno = [0 for _ in range(self.num_interation_cls)]
-        print("Compute number of annotaitons...")
         intra_idx = [self._idx[i] for i in self.pool]
         for idx in intra_idx:
             for hoi in self._anno[idx]['hoi']:
@@ -31,7 +30,7 @@ class HICODetSubset(DataSubset):
         return num_anno
     @property
     def anno_object(self):
-        """Override: return the number of annotation for each object category"""
+        """Override: Number of annotated box pairs for each object class"""
         num_anno = [0 for _ in range(self.num_object_cls)]
         anno_interaction = self.anno_interaction
         for corr in self._class_corr:
@@ -39,7 +38,7 @@ class HICODetSubset(DataSubset):
         return num_anno
     @property
     def anno_action(self):
-        """Override: return the number of annotation for each action category"""
+        """Override: Number of annotated box pairs for each action class"""
         num_anno = [0 for _ in range(self.num_action_cls)]
         anno_interaction = self.anno_interaction
         for corr in self._class_corr:
