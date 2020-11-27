@@ -1,11 +1,10 @@
-## __`CLASS`__ pocket.data.DataDict
+### __`CLASS`__ pocket.data.DataDict(_input_dict: dict, **kwargs_)
     
-Data dictionary class. This class allows setting and accessing dict keys as class
-attributes and provides save/load utilities using pickle as backend. Initialize 
-the class with a python dict. By default, an empty dict is applied.  
+Data dictionary class inherited from Python dictionary. This class allows setting and accessing dict keys as class attributes and provides save/load utilities using pickle as backend. Initialise the class with a python dict and/or keyworded arguments. By default, an empty dict is applied.
 
 `Parameters:`
-* **data_dict**_(dict, optional)_: A python dict (default: __*{}*__)
+* **input_dict**_(dict, optional)_: A python dict
+* **kwargs**_(optional)_: Keyworded arguments
 
 `Example:`
 ```python
@@ -19,11 +18,19 @@ True
 ```
 
 `Methods:`
-* **save**_(path)_: Save into a .pkl file as a standard python dict  
-* **load**_(path)_: Load a python dict from a .pkl file as data dict  
-* **is_empty**_()_: Return true if the dict has any keys, false otherwise  
+* save(_path: str, mode: str, **kwargs_): Save into a .pkl file as a standard python dict
+    * path: A valid path to which the data will be saved
+    * mode: An optional string that specifies the mode in which the file is opened
+    * kwargs: Keyworded arguments for *pickle.dump*
+* load(_path: str, **kwargs_): Load a python dict from a .pkl file as data dict
+    * path: A valid path from which the data will be loaded
+    * mode: An optional string that specifies the mode in which the file is opened
+    * kwargs: Keyworded arguments for *pickle.load*
+* is_empty(): Return `True` if the dict has any keys, `False` otherwise
 
-## __`CLASS`__ pocket.data.ImageDataset
+---
+
+### __`CLASS`__ pocket.data.ImageDataset
 
 Base class for image dataset. By default, *\_\_len\_\_()* returns the number of
 images and *\_\_getitem\_\_()* fetches an image as numpy array in _[H, W, C]_ 
