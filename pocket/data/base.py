@@ -49,15 +49,15 @@ class DataDict(dict):
         """Set attribute"""
         self[name] = value
 
-    def save(self, path, mode='wb'):
+    def save(self, path, mode='wb', **kwargs):
         """Save the dict into a pickle file"""
         with open(path, mode) as f:
-            pickle.dump(self.copy(), f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(self.copy(), f, **kwargs)
 
-    def load(self, path, mode='rb'):
+    def load(self, path, mode='rb', **kwargs):
         """Load a dict or DataDict from pickle file"""
         with open(path, mode) as f:
-            data_dict = pickle.load(f)
+            data_dict = pickle.load(f, **kwargs)
         for name in data_dict:
             self[name] = data_dict[name]
 
