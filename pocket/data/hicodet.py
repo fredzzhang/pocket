@@ -11,16 +11,17 @@ import os
 import json
 import numpy as np
 
+from typing import Optional, List, Callable, Tuple
 from .base import ImageDataset, DataSubset
 
 class HICODetSubset(DataSubset):
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         super().__init__(*args)
-    def filename(self, idx):
+    def filename(self, idx: int) -> str:
         """Override: return the image file name in the subset"""
         return self._filenames[self._idx[self.pool[idx]]]
     @property
-    def anno_interaction(self):
+    def anno_interaction(self) -> List[int]:
         """Override: Number of annotated box pairs for each interaction class"""
         num_anno = [0 for _ in range(self.num_interation_cls)]
         intra_idx = [self._idx[i] for i in self.pool]
@@ -29,7 +30,7 @@ class HICODetSubset(DataSubset):
                 num_anno[hoi] += 1
         return num_anno
     @property
-    def anno_object(self):
+    def anno_object(self) -> List[int]:
         """Override: Number of annotated box pairs for each object class"""
         num_anno = [0 for _ in range(self.num_object_cls)]
         anno_interaction = self.anno_interaction
@@ -37,7 +38,7 @@ class HICODetSubset(DataSubset):
             num_anno[corr[1]] += anno_interaction[corr[0]]
         return num_anno
     @property
-    def anno_action(self):
+    def anno_action(self) -> List[int]:
         """Override: Number of annotated box pairs for each action class"""
         num_anno = [0 for _ in range(self.num_action_cls)]
         anno_interaction = self.anno_interaction
@@ -49,7 +50,7 @@ class HICODet(ImageDataset):
     """
     Arguments:
         root(str): Root directory where images are downloaded to
-        annFile(str): Path to json annotation file
+        anno_file(str): Path to json annotation file
         transform(callable, optional): A function/transform that  takes in an PIL image
             and returns a transformed version
         target_transform(callable, optional): A function/transform that takes in the
@@ -57,36 +58,39 @@ class HICODet(ImageDataset):
         transforms (callable, optional): A function/transform that takes input sample 
             and its target as entry and returns a transformed version.
     """
-    def __init__(self, root, annoFile, transform=None, target_transform=None, transforms=None):
+    def __init__(self, root: str, anno_file: str,
+            transform: Optional[Callable] = None,
+            target_transform: Optional[Callable] = None,
+            transforms: Optional[Callable] = None) -> None:
         super(HICODet, self).__init__(root, transform, target_transform, transforms)
-        with open(annoFile, 'r') as f:
+        with open(anno_file, 'r') as f:
             anno = json.load(f)
 
         self.num_object_cls = 80
         self.num_interation_cls = 600
         self.num_action_cls = 117
-        self._annoFile = annoFile
+        self._anno_file = anno_file
 
         # Load annotations
-        self.load_annotation_and_metadata(anno)
+        self._load_annotation_and_metadata(anno)
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Return the number of images"""
         return len(self._idx)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int) -> tuple:
         """
         Arguments:
             i(int): Index to an image
         
         Returns:
             tuple[image, target]: By default, the tuple consists of a PIL image and a
-            dict with the following keys:
-                "boxes_h": list[list[4]]
-                "boxes_o": list[list[4]]
-                "hoi":: list[N]
-                "verb": list[N]
-                "object": list[N]
+                dict with the following keys:
+                    "boxes_h": list[list[4]]
+                    "boxes_o": list[list[4]]
+                    "hoi":: list[N]
+                    "verb": list[N]
+                    "object": list[N]
         """
         intra_idx = self._idx[i]
         return self._transforms(
@@ -94,16 +98,16 @@ class HICODet(ImageDataset):
             self._anno[intra_idx]
             )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return the executable string representation"""
         reprstr = self.__class__.__name__ + '(root=\"' + repr(self._root)
-        reprstr += '\", annoFile=\"'
-        reprstr += repr(self._annoFile)
+        reprstr += '\", anno_file=\"'
+        reprstr += repr(self._anno_file)
         reprstr += '\")'
         # Ignore the optional arguments
         return reprstr
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return the readable string representation"""
         reprstr = 'Dataset: ' + self.__class__.__name__ + '\n'
         reprstr += '\tNumber of images: {}\n'.format(self.__len__())
@@ -112,11 +116,11 @@ class HICODet(ImageDataset):
         return reprstr
 
     @property
-    def annotations(self):
+    def annotations(self) -> List[dict]:
         return self._anno
 
     @property
-    def class_corr(self):
+    def class_corr(self) -> List[Tuple[int, int, int]]:
         """
         Class correspondence matrix in zero-based index
         [
@@ -130,7 +134,7 @@ class HICODet(ImageDataset):
         return self._class_corr.copy()
 
     @property
-    def object_n_verb_to_interaction(self):
+    def object_n_verb_to_interaction(self) -> List[list]:
         """
         The interaction classes corresponding to an object-verb pair
 
@@ -146,7 +150,7 @@ class HICODet(ImageDataset):
         return lut.tolist()
 
     @property
-    def object_to_interaction(self):
+    def object_to_interaction(self) -> List[list]:
         """
         The interaction classes that involve each object type
         
@@ -159,7 +163,7 @@ class HICODet(ImageDataset):
         return obj_to_int
 
     @property
-    def object_to_verb(self):
+    def object_to_verb(self) -> List[list]:
         """
         The valid verbs for each object type
 
@@ -172,7 +176,7 @@ class HICODet(ImageDataset):
         return obj_to_verb
 
     @property
-    def anno_interaction(self):
+    def anno_interaction(self) -> List[int]:
         """
         Number of annotated box pairs for each interaction class
 
@@ -182,7 +186,7 @@ class HICODet(ImageDataset):
         return self._num_anno.copy()
 
     @property
-    def anno_object(self):
+    def anno_object(self) -> List[int]:
         """
         Number of annotated box pairs for each object class
 
@@ -195,7 +199,7 @@ class HICODet(ImageDataset):
         return num_anno
 
     @property
-    def anno_action(self):
+    def anno_action(self) -> List[int]:
         """
         Number of annotated box pairs for each action class
 
@@ -208,7 +212,7 @@ class HICODet(ImageDataset):
         return num_anno
 
     @property
-    def objects(self):
+    def objects(self) -> List[str]:
         """
         Object names 
 
@@ -218,9 +222,9 @@ class HICODet(ImageDataset):
         return self._objects.copy()
 
     @property
-    def verbs(self):
+    def verbs(self) -> List[str]:
         """
-        Verbs (action names)
+        Verb (action) names
 
         Returns:
             list[str]
@@ -228,7 +232,7 @@ class HICODet(ImageDataset):
         return self._verbs.copy()
 
     @property
-    def interactions(self):
+    def interactions(self) -> List[str]:
         """
         Combination of verbs and objects
 
@@ -238,7 +242,7 @@ class HICODet(ImageDataset):
         return [self._verbs[j] + ' ' + self.objects[i] 
             for _, i, j in self._class_corr]
 
-    def split(self, ratio):
+    def split(self, ratio: float) -> Tuple[HICODetSubset, HICODetSubset]:
         """
         Split the dataset according to given ratio
 
@@ -252,14 +256,14 @@ class HICODet(ImageDataset):
         n = int(len(perm) * ratio)
         return HICODetSubset(self, perm[:n]), HICODetSubset(self, perm[n:])
 
-    def filename(self, idx):
-        """Return the image file name"""
+    def filename(self, idx: int) -> str:
+        """Return the image file name given the index"""
         return self._filenames[self._idx[idx]]
 
-    def load_annotation_and_metadata(self, f):
+    def _load_annotation_and_metadata(self, f: dict) -> None:
         """
         Arguments:
-            f(dict): Dictionary loaded from {annoFile}.json
+            f(dict): Dictionary loaded from {anno_file}.json
         """
         idx = list(range(len(f['filenames'])))
         for empty_idx in f['empty']:
