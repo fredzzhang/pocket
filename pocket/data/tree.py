@@ -10,6 +10,7 @@ Australian Centre for Robotic Vision
 import os
 import numpy as np
 
+from typing import Optional, Any, List
 from .base import DataDict
 
 class Node:
@@ -20,7 +21,9 @@ class Node:
         parent(Node): Parent node
         data: Data of the current node. It could be any format
     """
-    def __init__(self, name, parent=None, data=None):
+    def __init__(self, name: str,
+            parent: Optional = None,
+            data: Optional[Any] = None) -> None:
         self._name = name
         self._parent = parent
         self._data = data
@@ -30,7 +33,7 @@ class Node:
             if parent is not None else "/"
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @property
@@ -38,18 +41,18 @@ class Node:
         return self._parent
 
     @property
-    def data(self):
+    def data(self) -> Any:
         return self._data
 
     @property
-    def children(self):
+    def children(self) -> DataDict:
         return self._children
 
     @property
-    def path(self):
+    def path(self) -> str:
         return self._path
 
-    def add(self, input_dict=None, **kwargs):
+    def add(self, input_dict: Optional[dict] = None, **kwargs) -> None:
         """Add children to the current node
 
         Arguments:
@@ -61,7 +64,7 @@ class Node:
         self._children.update(kwargs)
 
 class DatasetTree:
-    """Base class for a dataset tree
+    """Base class for a dataset tree. This class is used to build dataset navigators
 
     Arguments:
         num_classes(int): Number of classes in the dataset
@@ -69,7 +72,7 @@ class DatasetTree:
             multiple instances of one class in an image, the class label will 
             appear multiple times
     """
-    def __init__(self, num_classes, image_labels):
+    def __init__(self, num_classes: int, image_labels: List[list]) -> None:
         root = Node("root")
         root.add(
             images=Node("images", parent=root, data=dict()),
@@ -104,28 +107,30 @@ class DatasetTree:
         self._current_node = root
 
     @property
-    def root(self):
+    def root(self) -> Node:
         return self._root
 
-    def cn(self):
+    def cn(self) -> Node:
         """Return the current node"""
         return self._current_node
 
-    def ls(self):
+    def ls(self) -> List[str]:
         """List the children of the current node"""
         return list(self._current_node.children.keys())
 
-    def path(self):
+    def path(self) -> str:
         """Return the path of the current node"""
         return self._current_node.path
 
-    def up(self):
+    def up(self) -> None:
         """Move upwards in the tree"""
         if self._current_node._parent is not None:
             self._current_node = self._current_node._parent
+        else:
+            print("WARNING: Current node has no parent.")
 
-    def down(self, name):
-        """Move downwards in the tree"""
+    def down(self, name: str) -> None:
+        """Move downwards in the tree to the specified node"""
         if name in self._current_node._children:
             self._current_node = self._current_node._children[name]
         else:
