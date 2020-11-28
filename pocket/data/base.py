@@ -35,35 +35,35 @@ class DataDict(dict):
         >>> person.sex = 'male'
         >>> person.save('./person.pkl', 'w')
     """
-    def __init__(self, input_dict=None, **kwargs):
+    def __init__(self, input_dict: Optional[dict] = None, **kwargs) -> None:
         data_dict = dict() if input_dict is None else input_dict
         data_dict.update(kwargs)
         super(DataDict, self).__init__(**data_dict)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """Get attribute"""
         if name in self:
             return self[name]
         else:
             raise AttributeError(name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         """Set attribute"""
         self[name] = value
 
-    def save(self, path, mode='wb', **kwargs):
+    def save(self, path: str, mode: str = 'wb', **kwargs) -> None:
         """Save the dict into a pickle file"""
         with open(path, mode) as f:
             pickle.dump(self.copy(), f, **kwargs)
 
-    def load(self, path, mode='rb', **kwargs):
+    def load(self, path: str, mode: str = 'rb', **kwargs) -> None:
         """Load a dict or DataDict from pickle file"""
         with open(path, mode) as f:
             data_dict = pickle.load(f, **kwargs)
         for name in data_dict:
             self[name] = data_dict[name]
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return not bool(len(self))
 
 class StandardTransform:
@@ -107,9 +107,11 @@ class ImageDataset(Dataset):
         target_transform(callable, optional): A function/transform that takes in the
             target and transforms it
         transforms (callable, optional): A function/transform that takes input sample 
-            and its target as entry and returns a transformed version.
+            and its target as entry and returns a transformed version
     """
-    def __init__(self, root, transform=None, target_transform=None, transforms=None):
+    def __init__(self, root: str, transform: Optional[Callable] = None,
+            target_transform: Optional[Callable] = None,
+            transforms: Optional[Callable] = None) -> None:
         self._root = root
         self._transform = transform
         self._target_transform = target_transform
@@ -127,22 +129,22 @@ class ImageDataset(Dataset):
     def __getitem__(self, i):
         raise NotImplementedError
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return the executable string representation"""
         reprstr = self.__class__.__name__ + '(root=\"' + repr(self._root)
         reprstr += '\")'
         # Ignore the optional arguments
         return reprstr
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return the readable string representation"""
         reprstr = 'Dataset: ' + self.__class__.__name__ + '\n'
         reprstr += '\tNumber of images: {}\n'.format(self.__len__())
         reprstr += '\tRoot path: {}\n'.format(self._root)
         return reprstr
 
-    def load_image(self, path):
-        """Load an image and apply transform"""
+    def load_image(self, path: str) -> Image: 
+        """Load an image as PIL.Image"""
         return Image.open(path)
 
 class DataSubset(Dataset):
@@ -153,14 +155,14 @@ class DataSubset(Dataset):
         dataset(Dataset): Original dataset
         pool(List[int]): The pool of indices for the subset
     """
-    def __init__(self, dataset, pool):
+    def __init__(self, dataset: Dataset, pool: List[int]) -> None:
         self.dataset = dataset
         self.pool = pool
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.pool)
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Any:
         return self.dataset[self.pool[idx]]
-    def __getattr__(self, key):
+    def __getattr__(self, key: str) -> Any:
         if hasattr(self.dataset, key):
             return getattr(self.dataset, key)
         else:
