@@ -1,107 +1,290 @@
-## __`CLASS`__ lib.utils.basic.NetTrainer
+### __`CLASS`__ pocket.utils.NumericalMeter(_maxlen: Optional[int] = None_)
 
-Network trainer class
+Meter class with numerals as elements. Supported element types are int and float.
 
 `Parameters:`
-* *net(Module)*: PyTorch network module
-* *loss_fn(Module)*: PyTorch loss function module
-* *cache_dir(str)*: directory to save checkpoints and training log
-* *train_loader(iterable)*: dataloader for training set, preferably as DataLoader type, with batch output in the format \[INPUT_1, ..., INPUT_N, LABELS\]
-* *print_interval(int)*: number of steps to print losses
-* *optim(str, optional)*: optimizer used in training, a choice between 'SGD' and 'Adam' (default: __*'SGD'*__)
-* *optim_params(dict, optional)*: optimizer parameter dict with matched keyword (default: __*{'lr': 0.1, 'momentum': 0.9, 'weight_decay': 5e-4}*__)
-* *optim_state_dict(OrderedDict, optional)*: state dict of the optimizer (default: __*None*__)
-* *device(str, optional)*: the primary device used in training (default: __*'cpu'*__)
-* *multigpu(bool, optional)*: use multi-GPU for network forward pass. When set True, {device} has to be 'cuda:0' (default: __*False*__)
-* *val_data(tuple, optional)*: constant validation data, a tuple in the format \[INPUT_1, ..., INPUT_N, LABELS\] (default: __*None*__)
-* *val_loader(iterable, optional)*: dataloader for validation set, preferably as DataLoader type, with batch output in the format \[INPUT_1, ..., INPUT_N, LABELS\] (default: __*None*__)
-* *lr_scheduler(bool, optional)*: use learning rate scheduler (default: __*True*__)
-* *sched_params(dict, optional)*: learning rate scheduler parameter dict (default: __*{'patience':2, 'min_lr':1e-4}*__)
-* *input_transform(handle, optional)*: a function handle used to format batch data, (default: __*lambda a: a*__)
-
-`Properties:`
-* *step(int)*: current step number, implemented with setter
-* *epoch(int)*: current epoch number, implemented with setter
+* **maxlen**: Maximum number of elements to be stored in the meter. Leave the argument as None to keep the size flexible. Default is None.
 
 `Methods:`
-* *train(nepoch)*: train the network with a specified number of epochs
+* \_\_len\_\_() -> _int_: Return the number of elements
+* \_\_getitem\_\_(_i: int_) -> _Union[int, float]_: Return the element corresponding to the index
+* append(_x: Union[int, float]_) -> _None_: Add an element
+* sum() -> _Union[int, float]_: Return the sum of all elements
+* mean() -> _float_: Return the mean of all elements
+* max() -> _Union[int, float]_: Return the largest element
+* min() -> _Union[int, float]_: Return the smallest element
 
-## __`CLASS`__ lib.utils.basic.NetTester
+`Examples:`
+```python
+>>> from pocket.utils import NumericalMeter
+>>> m = NumericalMeter(2)
+>>> m.append(5); m.append(2.5)
+>>> m.sum()
+7.5
+>>> m.append(3)
+>>> # Due to the specified max length, the first element has been removed
+>>> m.sum()
+5.5
+```
 
-Network tester class
+---
+
+### __`CLASS`__ pocket.utils.HandyTimer(_maxlen: Optional[int] = None_)
+
+A timer class that tracks a sequence of time. The class is inherited from _NumericalMeter_ and is implemented with *\_\_enter\_\_()* and *\_\_exit\_\_()* methods.
 
 `Parameters:`
-* *net(Module)*: PyTorch network module
-* *dataloader(iterable)*: dataloader for the test set, preferably as DataLoader type. By default, the batch output should have the format \[INPUT_1, ..., INPUT_N, LABELS\]
-* *device(str, optional)*: the primary device used in training (default: __*'cpu'*__)
-* *print_interval(int, optional)*: number of steps to log progress (default: __*500*__)
-* *cache_dir(str optional)*: directory to save cache and test log (default: __*'./cache'*__)
-* *input_transform(handle, optional)*: a function handle used to format batch data, (default: __*lambda a: a*__)
-
-`Properties:`
-* *metric(str)*: the evaluation metric
-* *gtdb(ndarray)*: ground truth database, arranged in (NUM_IMAGES, NUM_CLASSES) for 'mAP'
-* *detdb(ndarray)*: detection database, arranged in (NUM_IMAGES, NUM_CLASSES) for 'mAP'
+* **maxlen**: Maximum number of elements to be stored in the meter. Leave the argument as None to keep the size flexible. Default is None.
 
 `Methods:`
-* *set_eval_metric(metric, **kwargs)*: set and prepare for evaluation metric
-    * *metric(str)*: the evaluation metric. Only 'mAP' is supported at the moment
-    * kwargs for __'mAP'__
-        * gt_dir(str): the directory for ground truth files
-        * min_IoU(float): minimum IoU for data association
-        * num_classes(int): number of classes
-        * samples_per_class(int): number of samples to be kept for each class
-        * detdb(ndarray, optional): detection results arranged in (N, M) array of objects, where N is the number of images and M is the number of classes. Each entry should be an ndarray of box pairs in the format \[H_x1, H_y1, H_x2, H_y2, O_x1, O_y1, O_x2, O_y2, Score\] (default: __*None*__)
-* *eval()*: evaluate the network based on the specified metric
+* \_\_len\_\_() -> _int_: Return the number of elements
+* \_\_getitem\_\_(_i: int_) -> _Union[int, float]_: Return the element corresponding to the index
+* append(_x: Union[int, float]_) -> _None_: Add an element
+* sum() -> _Union[int, float]_: Return the sum of all elements
+* mean() -> _float_: Return the mean of all elements
+* max() -> _Union[int, float]_: Return the largest element
+* min() -> _Union[int, float]_: Return the smallest element
 
-## __`CLASS`__ lib.utils.loss.BCELossForStratifiedBatch
+`Examples:`
+```python
+>>> import time
+>>> from pocket.utils import HandyTimer
+>>> t = HandyTimer()
+>>> with t:
+>>>     time.sleep(3)
+>>> with t:
+>>>     time.sleep(4)
+>>> len(t)
+2
+>>> t.mean()
+3.5
+```
 
-Binary cross entropy loss, modified to mask out co-occurring classes for multi-label classification problems. When applying stratified sampling, co-occurring classes could disrupt the desired balance between the number of samples for different classes. To resolve this problem, mask out the losses for those co-occurring classes, except the actual designated class.  
+---
 
-`Parameters:`
-* *cfg(CfgNode)*: configuration class with the following attributes
-    * *cfg.NUM_CLS_PER_BATCH(int)*: number of classes/strata to sample from in each minibatch
-    * *cfg.POS_GAIN(float)*: weights applied on the positive class
-    * *cfg.NUM_POS_SAMPLES(int)*: number of samples to take from each positive class
-    * *cfg.NUM_NEG_SAMPLES(int)*: number of samples to take from the negative class
+### __`CLASS`__ pocket.utils.AveragePrecisionMeter(_num_gt: Optional[Iterable] = None, algorithm: str = "AUC", chunksize: int = -1, output: Optional[Tensor] = None, labels: Optional[Tensor] = None_)
 
-## __`CLASS`__ lib.utils.loss.BCEWithLogitsLossForStratifiedBatch
-
-Binary cross entropy loss coupled with sigmoid function, modified to mask out co-occurring classes for multi-label classification problems. Child class of _lib.utils.loss.BCELossForStratifiedBatch_
-
-`Parameters:`
-* *cfg(CfgNode)*: configuration class with the following attributes
-    * *cfg.NUM_CLS_PER_BATCH(int)*: number of classes/strata to sample from in each minibatch
-    * *cfg.POS_GAIN(float)*: weights applied on the positive class
-    * *cfg.NUM_POS_SAMPLES(int)*: number of samples to take from each positive class
-    * *cfg.NUM_NEG_SAMPLES(int)*: number of samples to take from the negative class
-
-## __`CLASS`__ lib.utils.io.Log
-
-Logger class
+Meter to compute average precision
 
 `Parameters:`
-* *path(str)*: path of the file to write to
-* *mode(str, optional)*: file editing mode (default: __*'wb'*__)
+* **num_gt**: (K,) Number of ground truth instances for each class. When left as None, all positives are assumed to have been included in the collected results. As a result, full recall is guaranteed when the lowest scoring example is accounted for.
+* **algorithm**: AP evaluation algorithm
+    * _11P_: 11-point interpolation algorithm prior to voc2010
+    * _INT_: Interpolation algorithm with all points used in voc2010
+    * _AUC_: Precisely as the area under precision-recall curve
+* **chunksize**: The approximate size the given iterable will be split into for each worker. Use -1 to make the argument adaptive to iterable size and number of workers
+* **output**: (N, K) Output scores with N examples and K classes. Default is None
+* **labels**: (N, K) Binary labels. Default is None
 
-`Properties:`
-* *path(str)*: path of the file to write to
-* *mode(str)*: file editing mode, implemented with setter
+`Instance Methods:`
+* append(_output: Tensor, labels: Tensor_) -> _None_: Add new results to the meter
+    * **output**: (N, K) Output scores with N examples and K classes
+    * **labels**: (N, K) Binary labels
+* reset(_keep_old: bool = False_) -> _None_: Clear saved statistics and reset the meter
+    * **keep_old**: If True, only clear the newly collected statistics since last evaluation
+* eval() -> _Tensor_: Evaluate the average precision based on collected statistics
 
-`Methods`:
-* *write(descpt)*: write to file given a description string
-* *time()*: print time to log
+`Static Methods:`
+* compute_per_class_ap_as_auc(*tuple_: Tuple[Tensor, Tensor])*) -> _Tensor_: Compute AP as area under curve (AUC)
+    * **tuple_[0]**: (N,) Precision values
+    * **tuple_[1]**: (N,) Recall values
+* compute_per_class_ap_with_interpolation(*tuple_: Tuple[Tensor, Tensor]*) -> _Tensor_: Compute AP with interpolation at all points
+    * **tuple_[0]**: (N,) Precision values
+    * **tuple_[1]**: (N,) Recall values
+* compute_per_class_ap_with_11_point_interpolation(*tuple_: Tuple[Tensor, Tensor]*) -> _Tensor_: Compute AP with interpolation at 11 points with recall from 0 to 1
+    * **tuple_[0]**: (N,) Precision values
+    * **tuple_[1]**: (N,) Recall values
+* compute_precision_and_recall(_output: Tensor, labels: Tensor, num_gt: Optional[Tensor] = None, eps: float = 1e-8_) -> _Tuple[Tensor, Tensor]_: Compute precisions and recalls
+    * **output**: (N, K) Output scores with N examples and K classes
+    * **labels**: (N, K) Binary labels
+    * **num_gt**: (K,) Number of ground truth instances for each class. When left as None, all positives are assumed to have been included in the collected results. As a result, full recall is guaranteed when the lowest scoring example is accounted for.
+    * **eps**: A small constant to avoid division by zero
 
-## __`CLASS`__ lib.utils.io.TrainLog
+`Examples:`
+```python
+>>> """(1) Evalute AP using provided output scores and labels"""
+>>> # Given output(tensor[N, K]) and labels(tensor[N, K])
+>>> meter = pocket.utils.AveragePrecisionMeter(output=output, labels=labels)
+>>> ap = meter.eval(); map_ = ap.mean()
+>>> """(2) Collect results on the fly and evaluate AP"""
+>>> meter.reset()
+>>> # Compute output(tensor[N, K]) during forward pass
+>>> meter.append(output, labels)
+>>> ap = meter.eval(); map_ = ap.mean()
+```
 
-Logger during network training. Child class of _lib.utils.io.Log_
+---
+
+### __`CLASS`__ pocket.utils.DetectionAPMeter(_num_cls: int, num_gt: Optional[Tensor] = None, algorithm: str = 'AUC', nproc: int = 20, output: Optional[List[Tensor]] = None, labels: Optional[List[Tensor]] = None_)
+
+A variant of AP meter, where network outputs are assumed to be class-specific. Different classes could potentially have different number of samples.
 
 `Parameters:`
-* *path(str)*: path of the file to write to
-* *mode(str, optional)*: file editing mode (default: __*'a'*__)
+* **num_cls**: Number of target classes
+* **num_gt**: (K,) Number of ground truth instances for each class. When left as None, all positives are assumed to have been included in the collected results. As a result, full recall is guaranteed when the lowest scoring example is accounted for.
+* **algorithm**: AP evaluation algorithm
+    * _11P_: 11-point interpolation algorithm prior to voc2010
+    * _INT_: Interpolation algorithm with all points used in voc2010
+    * _AUC_: Precisely as the area under precision-recall curve
+* **nproc**: The number of processes used to compute mAP. Default: 20
+* **output**: A collection of output scores for K classes. Default is None
+* **labels**: Binary labels. Default is None
+
+`Instance Methods:`
+* append(_output: Tensor, prediction: Tensor, labels: Tensor_) -> _None_: Add new results to the meter
+    * **output**: (N,) Output scores for each sample
+    * **prediction**: (N,) Predicted classes 0~(K-1)
+    * **labels**: (N,) Binary labels for the predicted classes
+* reset(_keep_old: bool = False_) -> _None_: Clear saved statistics and reset the meter
+    * **keep_old**: If True, only clear the newly collected statistics since last evaluation
+* eval() -> _Tensor_: Evaluate the average precision based on collected statistics
+
+`Static Methods:`
+* compute_pr_for_each(_output: Tensor, labels: Tensor, num_gt: Optional[Union[int, float]] = None, eps: float = 1e-8_) -> _Tuple[Tensor, Tensor]_: Compute precision and recall for one class
+    * **output**: (N,) Output scores for each sample
+    * **labels**: (N,) Binary labels for each sample
+    * **num_gt**: Number of ground truth instances
+    * **eps**: A small constant to avoid division by zero
+
+`Examples:`
+```python
+>>> """(1) Evalute AP using provided output scores and labels"""
+>>> # Given output(List[tensor]) and labels(List[tensor])
+>>> meter = pocket.utils.DetectionAPMeter(num_cls, output=output, labels=labels)
+>>> ap = meter.eval(); map_ = ap.mean()
+>>> """(2) Collect results on the fly and evaluate AP"""
+>>> meter.reset()
+>>> # Get class-specific predictions. The following is an example
+>>> # Assume output(tensor[N, K]) and target(tensor[N]) are given
+>>> pred = output.argmax(1)
+>>> scores = output.max(1)
+>>> meter.append(scores, pred, pred==target)
+>>> ap = meter.eval(); map_ = ap.mean()
+```
+
+---
+
+### __`CLASS`__ pocket.utils.SyncedNumericalMeter(_maxlen: Optional[int] = None_)
+
+Numerical meter synchronized across subprocesses. By default, it is assumed that NCCL is used as the communication backend. Communication amongst subprocesses can only be done with CUDA tensors, not CPU tensors. Make sure to intialise default process group before instantiating the meter by
+
+```python
+torch.distributed.init_process_group(backbone="nccl", ...)
+```
+
+`Parameters:`
+* **maxlen**: Maximum number of elements to be stored in the meter. Leave the argument as None to keep the size flexible. Default is None.
 
 `Methods:`
-* *log(step, train_loss, val_loss=None)*: print loss to log in a specific format
-    * *step(int)*: step number
-    * *train_loss(float)*: training loss
-    * *val_loss(float, optional)*: validation loss (default: __*None*__)
+* \_\_len\_\_() -> _int_: Return the number of elements
+* \_\_getitem\_\_(_i: int_) -> _Union[int, float]_: Return the element corresponding to the index
+* append(_x: Union[int, float]_) -> _None_: Add an element
+* sum(_local: bool = False_) -> _Union[int, float]_: Return the sum of all elements
+    * **local**: If True, return the local stats. Otherwise, aggregate over all subprocesses
+* mean(_local: bool = False_) -> _float_: Return the mean of all elements
+    * **local**: If True, return the local stats. Otherwise, aggregate over all subprocesses
+* max(_local: bool = False_) -> _Union[int, float]_: Return the largest element
+    * **local**: If True, return the local stats. Otherwise, aggregate over all subprocesses
+* min(_local: bool = False_) -> _Union[int, float]_: Return the smallest element
+    * **local**: If True, return the local stats. Otherwise, aggregate over all subprocesses
+
+---
+
+### __`FUNCTION`__ pocket.utils.all_gather(_data: Any_) -> _List[Any]_
+
+Gather arbitrary picklable data (not necessarily tensors) across all subprocesses. The code is taken from
+https://github.com/pytorch/vision/blob/master/references/detection/utils.py. This implementation converts pickable data into 1-d byte tensors, and runs `torch.distributed.all_gather` to collate the results. 
+
+`Parameters:`
+* __data__: Any pickable data
+
+`Returns:`
+* __data_list__: List of data gathered from all subprocesses
+
+---
+
+### __`CLASS`__ pocket.utils.HTMLTable(_num_cols: int, *args: Iterable_)
+
+Base class for generation of HTML tables. This class generates HTML code to display the given iterables with specified number of columns. Assume there are N iterables and M columns, the generated table has the following format
+```python
+args[0][0],      args[0][1],      ...,    args[0][M],
+args[1][0],      args[1][1],      ...,    args[1][M],
+...,
+args[N][0],      args[N][1],      ...,    args[N][M],
+args[0][M+1],    args[0][M+2],    ...,    args[0][2*M],
+...,
+```
+
+`Parameters:`
+* **num_cols**: Number of columns in the table
+* **args**: Tuple of iterables to be displayed in the table
+
+`Methods:`
+* \_\_call\_\_(_fname: Optional[str] = None, title: Optional[str] = None_) -> None: Generate HTML code
+    * __fname__: Name (or path) of the output HTML file. If left as None, _table.html_ is used
+    * __title__: Name of the html page. If left as None, _Table_ is used
+
+---
+
+### __`CLASS`__ pocket.utils.ImageHTMLTable(_num_cols: int, image_dir: str, parser: Optional[Callable] = None, sorter: Optional[Callable] = None, extension: str = None, **kwargs_)
+
+HTML table of images with captions. By default the image file name will be used as caption.
+
+`Parameters:`
+* **num_cols**: Number of columns in the table
+* **image_dir**: Directory where images are located
+* **parser**: A parser that formats image names into captions
+* **sorter**: A function that sorts image names into desired order
+* **extension**: Format of image files to be collected
+* **kwargs**: Attributes of HTML \<img> tag. e.g. {"width": "75%"}
+
+---
+
+### __`FUNCTION`__ pocket.utils.draw_boxes(_image: PIL.Image, boxes: Union[ndarray, Tensor, list], **kwargs_) -> _None_
+
+Draw bounding boxes onto a PIL image
+
+`Parameters:`
+* **image**: Input image in the format PIL.Image
+* **boxes**: Bounding boxes in the format [x1, y1, x2, y2]
+* **kwargs**: Parameters for _PIL.ImageDraw.Draw.rectangle_
+
+`Examples:`
+```python
+>>> from PIL import Image
+>>> from pocket.utils import draw_boxes
+>>> image = Image.new('RGB', (200, 200))
+>>> draw_boxes(image, [[30, 30, 80, 80], [50, 50, 150, 150]])
+>>> image.show()
+```
+---
+
+### __`FUNCTION`__ pocket.utils.draw_dashed_line(_image: PIL.Image, xy: Union[ndarray, Tensor, list], length: int = 5, **kwargs_) -> None
+
+Draw dashed lines onto a PIL image
+
+`Parameters:`
+* **image**: Input image in the format PIL.Image
+* **xy**: Coordinates of the starting and ending point in the format [x1, y1, x2, y2]
+* **length**: Length of each line segment
+* **kwargs**: Parameters for _PIL.ImageDraw.Draw.line_
+
+`Examples:`
+```python
+>>> from PIL import Image
+>>> from pocket.utils import draw_boxes
+>>> image = Image.new('RGB', (200, 200))
+>>> draw_boxes(image, [30, 30, 180, 180])
+>>> image.show()
+```
+
+---
+
+### __`FUNCTION`__ pocket.utils.draw_dashed_rectangle(_image: PIL.Image, xy: Union[ndarray, Tensor, list], **kwargs_) -> _None_
+
+Draw rectangles in dashed lines onto a PIL image
+
+`Parameters:`
+* **image**: Input image in the format PIL.Image
+* **boxes**: Bounding boxes in the format [x1, y1, x2, y2]
+* **kwargs**: Parameters for _PIL.ImageDraw.Draw.rectangle_
