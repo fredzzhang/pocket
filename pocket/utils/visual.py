@@ -48,7 +48,7 @@ def draw_dashed_line(image, xy, length=5, **kwargs):
     canvas = ImageDraw.Draw(image)
     w = xy[2] - xy[0]; h = xy[3] - xy[1]
     hyp = np.sqrt(w ** 2 + h ** 2)
-    num = hyp / length
+    num = int(hyp / length)
 
     xx = np.linspace(xy[0], xy[2], num=num)
     yy = np.linspace(xy[1], xy[3], num=num)
