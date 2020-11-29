@@ -12,7 +12,9 @@ import copy
 import time
 import json
 import torch
-from torch.utils.data import DataLoader
+
+from torch.nn import Module
+from typing import Callable, Iterable, Optional, Any
 
 from ..data import DataDict
 from ..ops import relocate_to_device
@@ -28,26 +30,26 @@ class State:
     """
     Dict-based state class
     """
-    def __init__(self):
+    def __init__(self) -> None:
         self._state = DataDict()
 
-    def state_dict(self):
+    def state_dict(self) -> dict:
         """Return the state dict"""
         return self._state.copy()
 
-    def load_state_dict(self, dict_in):
+    def load_state_dict(self, dict_in: dict) -> None:
         """Load state from external dict"""
         for k in self._state:
             self._state[k] = dict_in[k]
 
-    def fetch_state_key(self, key):
+    def fetch_state_key(self, key: str) -> Any:
         """Return a specific key"""
         if key in self._state:
             return self._state[key]
         else:
             raise KeyError("Inexistent key {}".format(key))
 
-    def update_state_key(self, **kwargs):
+    def update_state_key(self, **kwargs) -> None:
         """Override specific keys in the state"""
         for k in kwargs:
             if k in self._state:
@@ -86,10 +88,12 @@ class LearningEngine(State):
         cache_dir(str): Directory to save checkpoints
     """
     def __init__(self,
-            net, criterion, train_loader,
-            optim='SGD', optim_params=None, optim_state_dict=None,
-            lr_scheduler=False, lr_sched_params=None,
-            verbal=True, print_interval=100, cache_dir='./checkpoints'):
+            net: Module, criterion: Callable, train_loader: Iterable,
+            optim: str = 'SGD', optim_params: Optional[dict] = None,
+            optim_state_dict: Optional[dict] = None,
+            lr_scheduler: bool = False, lr_sched_params: Optional[dict] = None,
+            verbal: bool = True, print_interval: int = 100,
+            cache_dir: str = './checkpoints'):
 
         super().__init__()
         self._dawn = time.time()
@@ -143,7 +147,7 @@ class LearningEngine(State):
         self._state.t_data = NumericalMeter(maxlen=print_interval)
         self._state.t_iteration = NumericalMeter(maxlen=print_interval)
 
-    def __call__(self, n):
+    def __call__(self, n: int) -> None:
         self.num_epochs = n
         # Train for a specified number of epochs
         self._on_start()
@@ -214,7 +218,7 @@ class LearningEngine(State):
             self._state.t_data.sum(), self._state.t_iteration.sum())
         )
 
-    def save_checkpoint(self):
+    def save_checkpoint(self) -> None:
         """Save a checkpoint of the model state"""
         # Make a copy of the network parameters and relocate to cpu
         model_state_dict = \
@@ -236,7 +240,7 @@ class LearningEngine(State):
             }, os.path.join(self._cache_dir, 'ckpt_{:05d}_{:02d}.pt'.\
                     format(self._state.iteration, self._state.epoch)))
 
-    def save_snapshot(self):
+    def save_snapshot(self) -> None:
         """Save a snapshot of the engine state"""
         torch.save(self.state_dict(),
             os.path.join(self._cache_dir, 'snapshot_{:05d}_{:02d}.spst'.\
@@ -304,10 +308,10 @@ class MultiClassClassificationEngine(LearningEngine):
         >>> engine(1)
         """
     def __init__(self,
-            net,
-            criterion,
-            train_loader,
-            val_loader=None,
+            net: Module,
+            criterion: Callable,
+            train_loader: Iterable,
+            val_loader: Optional[Iterable] = None,
             **kwargs):
 
         super().__init__(net, criterion, train_loader, **kwargs)
@@ -447,11 +451,11 @@ class MultiLabelClassificationEngine(LearningEngine):
         >>> engine(1)
         """
     def __init__(self,
-            net,
-            criterion,
-            train_loader,
-            val_loader=None,
-            ap_algorithm='INT',
+            net: Module,
+            criterion: Callable,
+            train_loader: Iterable,
+            val_loader: Optional[Iterable] = None,
+            ap_algorithm: str = 'INT',
             **kwargs):
         
         super().__init__(net, criterion, train_loader, **kwargs)

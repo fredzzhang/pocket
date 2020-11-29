@@ -13,6 +13,9 @@ import copy
 import torch
 import torch.distributed as dist
 
+from torch.nn import Module
+from typing import Callable, Iterable, Optional
+
 from ..ops import relocate_to_cuda
 from ..utils import SyncedNumericalMeter
 
@@ -43,11 +46,12 @@ class DistributedLearningEngine(State):
         cache_dir(str): Directory to save checkpoints
     """
     def __init__(self,
-            net, criterion, train_loader,
-            device=None, optim='SGD',
-            optim_params=None, optim_state_dict=None,
-            lr_scheduler=False, lr_sched_params=None,
-            verbal=True, print_interval=100, cache_dir='./checkpoints'):
+            net: Module, criterion: Callable, train_loader: Iterable,
+            device: Optional[int] = None, optim: str = 'SGD',
+            optim_params: Optional[dict] = None, optim_state_dict: Optional[dict] = None,
+            lr_scheduler: bool = False, lr_sched_params: Optional[dict] = None,
+            verbal: bool = True, print_interval: int = 100,
+            cache_dir: str = './checkpoints'):
 
         super().__init__()
         if not dist.is_available():
@@ -114,7 +118,7 @@ class DistributedLearningEngine(State):
         self._state.t_data = SyncedNumericalMeter(maxlen=print_interval)
         self._state.t_iteration = SyncedNumericalMeter(maxlen=print_interval)
 
-    def __call__(self, n):
+    def __call__(self, n: int) -> None:
         self.epochs = n
         # Train for a specified number of epochs
         self._on_start()
@@ -198,7 +202,7 @@ class DistributedLearningEngine(State):
         self._state.t_data.reset()
         self._state.running_loss.reset()
 
-    def save_checkpoint(self):
+    def save_checkpoint(self) -> None:
         """Save a checkpoint of the model state"""
         # Make a copy of the network parameters and relocate to cpu
         model_state_dict = self._state.net.module.state_dict().copy()
