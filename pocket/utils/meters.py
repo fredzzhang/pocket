@@ -11,27 +11,29 @@ import time
 import torch
 import multiprocessing
 
+from torch import Tensor
 from collections import deque
+from typing import Optional, Iterable, Any, List, Union, Tuple
 from ..ops import to_tensor
 
 class Meter:
     """
     Base class
     """
-    def __init__(self, maxlen=None):
+    def __init__(self, maxlen: Optional[int] = None) -> None:
         self._deque = deque(maxlen=maxlen)
         self._maxlen = maxlen
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._deque)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable:
         return iter(self._deque)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int) -> Any:
         return self._deque[i]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         reprstr = self.__class__.__name__ + '('
         reprstr += str([item for item in self._deque])
         reprstr += ', maxlen='
@@ -39,11 +41,11 @@ class Meter:
         reprstr += ')'
         return reprstr
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the meter"""
         self._deque.clear()
 
-    def append(self, x):
+    def append(self, x: Any) -> None:
         """Append an element"""
         self._deque.append(x)
 
@@ -64,7 +66,7 @@ class Meter:
         raise NotImplementedError
 
     @property
-    def items(self):
+    def items(self) -> List[Any]:
         """Return the content"""
         return [item for item in self._deque]
 
@@ -74,38 +76,38 @@ class NumericalMeter(Meter):
     """
     VALID_TYPES = [int, float]
     
-    def __init__(self, maxlen=None):
+    def __init__(self, maxlen: Optional[int] = None) -> None:
         super().__init__(maxlen=maxlen)
 
-    def append(self, x):
+    def append(self, x: Union[int, float]) -> None:
         if type(x) in self.VALID_TYPES:
             super().append(x)
         else:
             raise TypeError("Given element \'{}\' is not a numeral".format(x))
 
-    def sum(self):
+    def sum(self) -> Union[int, float]:
         return sum(self._deque)
 
-    def mean(self):
+    def mean(self) -> float:
         return sum(self._deque) / len(self._deque)
 
-    def max(self):
+    def max(self) -> Union[int, float]:
         return max(self._deque)
 
-    def min(self):
+    def min(self) -> Union[int, float]:
         return min(self._deque)
 
 class HandyTimer(NumericalMeter):
     """
     A timer class that tracks a sequence of time
     """
-    def __init__(self, maxlen=None):
+    def __init__(self, maxlen: Optional[int] = None):
         super().__init__(maxlen=maxlen)
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self._timestamp = time.time()
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type, value, traceback) -> None:
         self.append(time.time() - self._timestamp)
 
 class AveragePrecisionMeter:
@@ -145,8 +147,10 @@ class AveragePrecisionMeter:
         >>> meter.reset()
 
     """
-    def __init__(self, num_gt=None, algorithm="AUC", chunksize=-1, 
-            output=None, labels=None):
+    def __init__(self, num_gt: Optional[Iterable] = None,
+            algorithm: str = "AUC", chunksize: int = -1, 
+            output: Optional[Tensor] = None,
+            labels: Optional[Tensor] = None) -> None:
         self.num_gt = torch.as_tensor(num_gt) \
             if num_gt is not None else None
         self.algorithm = algorithm
@@ -166,7 +170,7 @@ class AveragePrecisionMeter:
         self._labels_temp = [torch.Tensor([])]
 
     @staticmethod
-    def compute_per_class_ap_as_auc(tuple_):
+    def compute_per_class_ap_as_auc(tuple_: Tuple[Tensor, Tensor]) -> Tensor:
         """
         Arguments: 
             tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
@@ -189,7 +193,7 @@ class AveragePrecisionMeter:
         return ap
 
     @staticmethod
-    def compute_per_class_ap_with_interpolation(tuple_):
+    def compute_per_class_ap_with_interpolation(tuple_: Tuple[Tensor, Tensor]) -> Tensor:
         """
         Arguments:
             tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
@@ -214,7 +218,7 @@ class AveragePrecisionMeter:
         return ap
 
     @staticmethod
-    def compute_per_class_ap_with_11_point_interpolation(tuple_):
+    def compute_per_class_ap_with_11_point_interpolation(tuple_: Tuple[Tensor, Tensor]) -> Tensor:
         """
         Arguments:
             tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
@@ -230,7 +234,10 @@ class AveragePrecisionMeter:
         return ap
 
     @classmethod            
-    def compute_ap(cls, output, labels, num_gt=None, algorithm='AUC', chunksize=-1):
+    def compute_ap(cls, output: Tensor, labels: Tensor,
+            num_gt: Optional[Tensor] = None,
+            algorithm: str = 'AUC',
+            chunksize: int = -1) -> Tensor:
         """
         Compute average precision under the classification setting. Scores of all 
         classes are retained for each sample.
@@ -281,7 +288,9 @@ class AveragePrecisionMeter:
         return ap
 
     @staticmethod
-    def compute_precision_and_recall(output, labels, num_gt=None, eps=1e-8):
+    def compute_precision_and_recall(output: Tensor, labels: Tensor,
+            num_gt: Optional[Tensor] = None,
+            eps: float = 1e-8) -> Tuple[Tensor, Tensor]:
         """
         Arguments:
             output(FloatTensor[N, K])
@@ -308,7 +317,7 @@ class AveragePrecisionMeter:
             tp / (num_gt + eps)
         return prec, rec
 
-    def append(self, output, labels):
+    def append(self, output: Tensor, labels: Tensor) -> None:
         """
         Add new results to the meter
 
@@ -324,7 +333,7 @@ class AveragePrecisionMeter:
         else:
             raise TypeError("Arguments should both be torch.Tensor")
 
-    def reset(self, keep_old=False):
+    def reset(self, keep_old: bool = False) -> None:
         """
         Clear saved statistics
 
@@ -338,7 +347,7 @@ class AveragePrecisionMeter:
         self._output_temp = [torch.Tensor([])]
         self._labels_temp = [torch.Tensor([])]
 
-    def eval(self):
+    def eval(self) -> Tensor:
         """
         Evaluate the average precision based on collected statistics
 
@@ -411,8 +420,10 @@ class DetectionAPMeter:
         >>> meter.reset()
 
     """
-    def __init__(self, num_cls, num_gt=None, algorithm='AUC', nproc=20,
-            output=None, labels=None):
+    def __init__(self, num_cls: int, num_gt: Optional[Tensor] = None,
+            algorithm: str = 'AUC', nproc: int = 20,
+            output: Optional[List[Tensor]] = None,
+            labels: Optional[List[Tensor]] = None) -> None:
         if num_gt is not None and len(num_gt) != num_cls:
             raise AssertionError("Provided ground truth instances"
                 "do not have the same number of classes as specified")
@@ -499,7 +510,9 @@ class DetectionAPMeter:
             return 0, 0
 
     @staticmethod
-    def compute_pr_for_each(output, labels, num_gt=None, eps=1e-8):
+    def compute_pr_for_each(output: Tensor, labels: Tensor,
+            num_gt: Optional[Union[int, float]] = None,
+            eps: float = 1e-8) -> Tuple[Tensor, Tensor]:
         """
         Arguments:
             output(FloatTensor[N])
@@ -523,7 +536,7 @@ class DetectionAPMeter:
 
         return prec, rec
 
-    def append(self, output, prediction, labels):
+    def append(self, output: Tensor, prediction: Tensor, labels: Tensor) -> None:
         """
         Add new results to the meter
 
@@ -544,7 +557,7 @@ class DetectionAPMeter:
         else:
             raise TypeError("Arguments should be torch.Tensor")
 
-    def reset(self, keep_old=False):
+    def reset(self, keep_old: bool = False) -> None:
         """
         Clear saved statistics
 
@@ -559,7 +572,7 @@ class DetectionAPMeter:
         self._output_temp = [[] for _ in range(num_cls)]
         self._labels_temp = [[] for _ in range(num_cls)]
 
-    def eval(self):
+    def eval(self) -> Tensor:
         """
         Evaluate the average precision based on collected statistics
 

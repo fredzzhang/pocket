@@ -11,6 +11,7 @@ import torch
 import pickle
 import torch.distributed as dist
 
+from typing import Optional, Union, Any, List
 from .meters import NumericalMeter
 
 class SyncedNumericalMeter(NumericalMeter):
@@ -22,14 +23,14 @@ class SyncedNumericalMeter(NumericalMeter):
 
         torch.distributed.init_process_group(backbone="nccl", ...)
     """
-    def __init__(self, maxlen=None):
+    def __init__(self, maxlen: Optional[int] = None) -> None:
         if not dist.is_available():
             raise AssertionError("Torch not compiled with distributed package")
         if not dist.is_initialized():
             raise AssertionError("Default process group has not been initialized")
         super().__init__(maxlen=maxlen)
 
-    def append(self, x):
+    def append(self, x: Union[int, float]) -> None:
         """
         Append an elment
 
@@ -43,7 +44,7 @@ class SyncedNumericalMeter(NumericalMeter):
         else:
             raise TypeError('Unsupported data type {}'.format(x))
 
-    def sum(self, local=False):
+    def sum(self, local: bool = False) -> Union[int, float]:
         """
         Arguments:
             local(bool): If True, return the local stats.
@@ -57,7 +58,7 @@ class SyncedNumericalMeter(NumericalMeter):
             dist.all_reduce(sum_)
             return sum_.item()
 
-    def mean(self, local=False):
+    def mean(self, local: bool = False) -> float:
         """
         Arguments:
             local(bool): If True, return the local stats.
@@ -71,7 +72,7 @@ class SyncedNumericalMeter(NumericalMeter):
             dist.all_reduce(mean_)
             return mean_.item() / dist.get_world_size()
 
-    def max(self, local=False):
+    def max(self, local: bool = False) -> Union[int, float]:
         """
         Arguments:
             local(bool): If True, return the local stats.
@@ -85,7 +86,7 @@ class SyncedNumericalMeter(NumericalMeter):
             dist.all_reduce(max_, op=dist.ReduceOp.MAX)
             return max_.item()
 
-    def min(self, local=False):
+    def min(self, local: bool = False) -> Union[int, float]:
         """
         Arguments:
             local(bool): If True, return the local stats.
@@ -99,7 +100,7 @@ class SyncedNumericalMeter(NumericalMeter):
             dist.all_reduce(min_, op=dist.ReduceOp.MIN)
             return min_.item()
 
-def all_gather(data):
+def all_gather(data: Any) -> List[Any]:
     """
     Run all_gather on arbitrary picklable data (not necessarily tensors)
     https://github.com/pytorch/vision/blob/master/references/detection/utils.py

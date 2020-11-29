@@ -10,9 +10,12 @@ Australian Centre for Robotic Vision
 import os
 import numpy as np
 
+from typing import Optional, Iterable, Callable
+
 class HTMLTable:
-    def __init__(self, num_cols, *args):
+    def __init__(self, num_cols: int, *args: Iterable) -> None:
         """Base class for generation of HTML tables
+        Extended from code by Stephen Gould <stephen.gould@anu.edu.au>
 
         Arguments:
             num_cols(int): Number of columns in the table
@@ -28,7 +31,7 @@ class HTMLTable:
 
         Example:
             >>> import numpy as np
-            >>> from pocket.diag import HTMLTable
+            >>> from pocket.utils import HTMLTable
             >>> iter1 = np.random.rand(100); iter2 = 10 * iter1
             >>> a = HTMLTable(10, iter1, iter2)
             >>> a()
@@ -57,7 +60,7 @@ class HTMLTable:
         """Write table header"""
         pass
 
-    def __call__(self, fname=None, title=None):
+    def __call__(self, fname: Optional[str] = None, title: Optional[str] = None) -> None:
         """Generate html code for the table
 
         Arguments:
@@ -85,10 +88,12 @@ class HTMLTable:
         fp.close()
 
 class ImageHTMLTable(HTMLTable):
-    def __init__(self, num_cols, image_dir,
-                parser=None, sorter=None, extension=None,
-                **kwargs):
-        """HTML table of images and captions
+    def __init__(self, num_cols: int, image_dir: str,
+                parser: Optional[Callable] = None,
+                sorter: Optional[Callable] = None,
+                extension: str = None,
+                **kwargs) -> None:
+        """HTML table of images with captions
 
         Arguments:
             num_cols(int): Number of columns in the table
