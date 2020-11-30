@@ -83,10 +83,10 @@ pip install matplotlib tqdm scipy
 # Install Pocket under any desired directory
 INSTALL_DIR=YOUR_CHOICE
 cd $INSTALL_DIR
-git clone https://github.com/FredericZhang/Pocket.git
-conda develop Pocket
+git clone https://github.com/FredericZhang/pocket.git
+conda develop pocket
 # Run an example as a test
-cd Pocket/examples
+cd pocket/examples
 CUDA_VISIBLE_DEVICES=0 python mnist.py
 ```
 
