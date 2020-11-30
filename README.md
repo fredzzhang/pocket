@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <img src="https://static.wikia.nocookie.net/fictionalcrossover/images/6/62/Doraemon_2005.jpg/revision/latest?cb=20151107162648" alt="doraemon" width="200" />
+  <img src="./misc/doraemon.png" alt="doraemon" width="400" />
   <br>
   Pocket
   <br>
@@ -85,6 +85,8 @@ INSTALL_DIR=YOUR_CHOICE
 cd $INSTALL_DIR
 git clone https://github.com/FredericZhang/Pocket.git
 conda develop Pocket
+# Run an example as a test
+CUDA_VISIBLE_DEVICES=0 python Pocket/examples/mnist.py
 ```
 
 ## License
