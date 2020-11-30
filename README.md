@@ -50,7 +50,7 @@ for ...                                 # Iterating over all epochs
     self._on_end_epoch()                # Invoked after each epoch
 self._on_end()                          # Invoked after all epochs
 ```
-For details and inheritance of the base learning engines, refer to the [documentation](./pocket/core/README.md). For practical examples, refre to the following
+For details and inheritance of the base learning engines, refer to the [documentation](./pocket/core/README.md). For practical examples, refer to the following
 
 <table class="table">
 	<tr>
@@ -86,7 +86,8 @@ cd $INSTALL_DIR
 git clone https://github.com/FredericZhang/Pocket.git
 conda develop Pocket
 # Run an example as a test
-CUDA_VISIBLE_DEVICES=0 python Pocket/examples/mnist.py
+cd Pocket/examples
+CUDA_VISIBLE_DEVICES=0 python mnist.py
 ```
 
 ## License
