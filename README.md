@@ -83,7 +83,7 @@ pip install matplotlib tqdm scipy
 # Install Pocket under any desired directory
 INSTALL_DIR=YOUR_CHOICE
 cd $INSTALL_DIR
-git clone https://github.com/FredericZhang/pocket.git
+git clone https://github.com/fredzzhang/pocket.git
 conda develop pocket
 # Run an example as a test
 cd pocket/examples
