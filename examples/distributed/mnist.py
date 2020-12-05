@@ -54,6 +54,9 @@ def main(rank, world_size):
     # saved model parameters, optimizer statistics and progress
     engine(5)
 
+    # Clean up
+    dist.destroy_process_group()
+
 if __name__ == '__main__':
 
     # Number of GPUs to run the experiment with
@@ -62,3 +65,18 @@ if __name__ == '__main__':
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "8888"
     mp.spawn(main, nprocs=WORLD_SIZE, args=(WORLD_SIZE,))
+
+    # Sample output
+    """
+    Epoch [1/5], Iter. [100/235], Loss: 2.2968, Time[Data/Iter.]: [3.31s/6.57s]
+    Epoch [1/5], Iter. [200/235], Loss: 2.2767, Time[Data/Iter.]: [2.30s/5.07s]
+    Epoch [2/5], Iter. [065/235], Loss: 2.2289, Time[Data/Iter.]: [3.13s/5.50s]
+    Epoch [2/5], Iter. [165/235], Loss: 2.0091, Time[Data/Iter.]: [2.11s/4.99s]
+    Epoch [3/5], Iter. [030/235], Loss: 1.0353, Time[Data/Iter.]: [3.21s/5.81s]
+    Epoch [3/5], Iter. [130/235], Loss: 0.5111, Time[Data/Iter.]: [2.59s/5.80s]
+    Epoch [3/5], Iter. [230/235], Loss: 0.4194, Time[Data/Iter.]: [2.32s/5.14s]
+    Epoch [4/5], Iter. [095/235], Loss: 0.3574, Time[Data/Iter.]: [3.01s/5.64s]
+    Epoch [4/5], Iter. [195/235], Loss: 0.3105, Time[Data/Iter.]: [2.39s/4.99s]
+    Epoch [5/5], Iter. [060/235], Loss: 0.2800, Time[Data/Iter.]: [3.23s/6.19s]
+    Epoch [5/5], Iter. [160/235], Loss: 0.2575, Time[Data/Iter.]: [2.44s/4.67s]
+    """

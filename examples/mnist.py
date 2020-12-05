@@ -47,16 +47,16 @@ if __name__ == '__main__':
 
     # Sample output
     """
-    => Validation (+9.74s)
-    Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 1.83s
+    => Validation (+3.67s)
+    Epoch: 0 | Acc.: 0.1008[1008/10000] | Loss: 2.3036 | Time: 1.99s
 
-    [Ep.][Iter.]: [1][100] | Loss: 2.2971 | Time[Data/Iter.]: [2.8266s/3.1294s]
-    [Ep.][Iter.]: [1][200] | Loss: 2.2773 | Time[Data/Iter.]: [2.6130s/2.9324s]
-    [Ep.][Iter.]: [1][300] | Loss: 2.2289 | Time[Data/Iter.]: [2.3087s/2.6148s]
-    [Ep.][Iter.]: [1][400] | Loss: 2.0142 | Time[Data/Iter.]: [2.1537s/2.4501s]
+    Epoch [1/1], Iter. [100/469], Loss: 2.2971, Time[Data/Iter.]: [1.73s/1.98s]
+    Epoch [1/1], Iter. [200/469], Loss: 2.2773, Time[Data/Iter.]: [1.70s/1.96s]
+    Epoch [1/1], Iter. [300/469], Loss: 2.2289, Time[Data/Iter.]: [1.68s/1.98s]
+    Epoch [1/1], Iter. [400/469], Loss: 2.0143, Time[Data/Iter.]: [1.69s/1.99s]
 
-    => Training (+22.64s)
-    Epoch: 1 | Acc.: 0.3182[19091/60000]
-    => Validation (+24.36s)
-    Epoch: 1 | Acc.: 0.7949[7949/10000] | Loss: 0.7700 | Time: 1.72s
+    => Training (+12.96s)
+    Epoch: 1 | Acc.: 0.3182[19090/60000]
+    => Validation (+14.65s)
+    Epoch: 1 | Acc.: 0.7947[7947/10000] | Loss: 0.7701 | Time: 1.69s
     """
