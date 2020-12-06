@@ -192,8 +192,8 @@ torch.distributed.init_process_group(backbone="nccl", ...)
 
 ### __`FUNCTION`__ pocket.utils.all_gather(_data: Any_) -> _List[Any]_
 
-Gather arbitrary picklable data (not necessarily tensors) across all subprocesses. The code is taken from
-https://github.com/pytorch/vision/blob/master/references/detection/utils.py. This implementation converts pickable data into 1-d byte tensors, and runs `torch.distributed.all_gather` to collate the results. 
+Gather arbitrary picklable data (not necessarily tensors) across all subprocesses. This implementation converts pickable data into 1-d byte tensors, and runs `torch.distributed.all_gather` to collate the results. The code is taken from
+https://github.com/pytorch/vision/blob/master/references/detection/utils.py.
 
 `Parameters:`
 * __data__: Any pickable data
@@ -257,6 +257,30 @@ Draw bounding boxes onto a PIL image
 >>> draw_boxes(image, [[30, 30, 80, 80], [50, 50, 150, 150]])
 >>> image.show()
 ```
+
+---
+
+### __`FUNCTION`__ pocket.utils.draw_box_pairs(_image: PIL.Image, boxes_1: Union[ndarray, Tensor, list], boxes_2: Union[ndarray, Tensor, list], width: int = 1_) -> _None_
+
+Draw bounding box pairs onto a PIL image. Boxes corresponding to argument <boxes_1> are drawn in blue, and green for the other group. Corresponding box pairs will be joined by a red line connecting the centres of the boxes
+
+`Parameters:`
+* **image**: Input image in the format PIL.Image
+* **boxes_1**: Bounding boxes in the format [x1, y1, x2, y2]
+* **boxes_2**: Bounding boxes in the format [x1, y1, x2, y2]
+* **width**: Width of the boxes
+
+`Examples:`
+```python
+>>> from PIL import Image
+>>> from pocket.utils import draw_box_pairs
+>>> image = Image.new('RGB', (120, 120))
+>>> boxes_1 = [[10, 10, 40, 40], [30, 30, 100, 100]]
+>>> boxes_2 = [[10, 60, 40, 90], [80, 80, 110, 110]]
+>>> draw_box_pairs(image, boxes_1, boxes_2)
+>>> image.show()
+```
+
 ---
 
 ### __`FUNCTION`__ pocket.utils.draw_dashed_line(_image: PIL.Image, xy: Union[ndarray, Tensor, list], length: int = 5, **kwargs_) -> None
@@ -288,3 +312,36 @@ Draw rectangles in dashed lines onto a PIL image
 * **image**: Input image in the format PIL.Image
 * **boxes**: Bounding boxes in the format [x1, y1, x2, y2]
 * **kwargs**: Parameters for _PIL.ImageDraw.Draw.rectangle_
+
+---
+
+### __`CLASS`__ pocket.utils.BoxAssociation(*min_iou: float, encoding: str = 'coord'*)
+
+Associate detection boxes with ground truth boxes
+
+`Parameters:`
+* **min_iou**: The minimum intersection over union to identify a positive
+* **encoding**: Encodings of the bounding boxes. Choose between 'coord' and 'pixel'. Refer to *pocket.ops.box_iou* for details
+
+`Methods:`
+* \_\_call\_\_(*gt_boxes: FloatTensor, det_boxes: FloatTensor, scores: FloatTensor*) -> FloatTensor: Compute binary labels for each detected box
+    * **gt_boxes**: (N, 4) Ground truth bounding boxes in (x1, y1, x2, y2) format
+    * **det_boxes**: (M, 4) Detected bounding boxes in (x1, y1, x2, y2) format
+    * **scores**: (M,) Confidence scores for each detection
+    * Returns: (M,) Binary labels for each detection
+
+---
+### __`CLASS`__ pocket.utils.BoxPairAssociation(*min_iou: float, encoding: str = 'coord'*)
+
+Associate detection box pairs with ground truth box pairs. The intersection over union is computed between the corresponding boxes in the pair. The final IoU is taken as the minimum between the two.
+
+`Parameters:`
+* **min_iou**: The minimum intersection over union to identify a positive
+* **encoding**: Encodings of the bounding boxes. Choose between 'coord' and 'pixel'. Refer to *pocket.ops.box_iou* for details
+
+`Methods:`
+* \_\_call\_\_(*gt_boxes: Tuple[FloatTensor, FloatTensor], det_boxes: Tuple[FloatTensor, FloatTensor], scores: FloatTensor*) -> FloatTensor: Compute binary labels for each detected box
+    * **gt_boxes**: Ground truth box pairs in a 2-tuple
+    * **det_boxes**: Detection box pairs in a 2-tuple
+    * **scores**: (M,) Confidence scores for each detected box pair
+    * Returns: (M,) Binary labels for each detected box pair
