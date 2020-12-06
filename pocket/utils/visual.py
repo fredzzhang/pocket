@@ -17,7 +17,7 @@ def draw_boxes(image, boxes, **kwargs):
 
     Arguments:
         image(PIL Image)
-        boxes(torch.Tensor[N,4] or np.ndarray[N,4] or List[List]): Bounding box
+        boxes(torch.Tensor[N,4] or np.ndarray[N,4] or List[List[4]]): Bounding box
             coordinates in the format (x1, y1, x2, y2)
         kwargs(dict): Parameters for PIL.ImageDraw.Draw.rectangle
     """
@@ -29,6 +29,48 @@ def draw_boxes(image, boxes, **kwargs):
     canvas = ImageDraw.Draw(image)
     for box in boxes:
         canvas.rectangle(box, **kwargs)
+
+def draw_box_pairs(image, boxes_1, boxes_2, width=1):
+    """Draw bounding box pairs onto a PIL image. Boxes corresponding to argument <boxes_1>
+    are drawn in blue, and green for the other group. Corresponding box pairs will be joined
+    by a red line connecting the centres of the boxes
+
+    Arguments:
+        image(PIL Image)
+        boxes_1(torch.Tensor[N,4] or np.ndarray[N,4] or List[List[4]]): Bounding box
+            coordinates in the format (x1, y1, x2, y2)
+        boxes_2: Same format as above
+        width: Width of the boxes
+    """
+    if isinstance(boxes_1, (torch.Tensor, list)):
+        boxes_1 = np.asarray(boxes_1)
+    elif not isinstance(boxes_1, np.ndarray):
+        raise TypeError("Bounding box coords. should be torch.Tensor, np.ndarray or list")
+    if isinstance(boxes_2, (torch.Tensor, list)):
+        boxes_2 = np.asarray(boxes_2)
+    elif not isinstance(boxes_2, np.ndarray):
+        raise TypeError("Bounding box coords. should be torch.Tensor, np.ndarray or list")
+
+    canvas = ImageDraw.Draw(image)
+    assert len(boxes_1) == len(boxes_2), "Number of boxes does not match between two given groups"
+    for b1, b2 in zip(boxes_1, boxes_2):
+        canvas.rectangle(b1.tolist(), outline='#007CFF', width=width)
+        canvas.rectangle(b2.tolist(), outline='#46FF00', width=width)
+        b_h_centre = (b1[:2]+b1[2:])/2
+        b_o_centre = (b2[:2]+b2[2:])/2
+        canvas.line(
+            b_h_centre.tolist() + b_o_centre.tolist(),
+            fill='#FF4444', width=width
+        )
+        canvas.ellipse(
+            (b_h_centre - width).tolist() + (b_h_centre + width).tolist(),
+            fill='#FF4444'
+        )
+        canvas.ellipse(
+            (b_o_centre - width).tolist() + (b_o_centre + width).tolist(),
+            fill='#FF4444'
+        )
+
 
 def draw_dashed_line(image, xy, length=5, **kwargs):
     """Draw dashed lines onto a PIL image
