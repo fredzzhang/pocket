@@ -173,9 +173,9 @@ class AveragePrecisionMeter:
     def compute_per_class_ap_as_auc(tuple_: Tuple[Tensor, Tensor]) -> Tensor:
         """
         Arguments: 
-            tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
+            tuple_(Tuple[Tensor, Tensor]): precision and recall
         Returns:
-            ap(FloatTensor[1])
+            ap(Tensor[1])
         """
         prec, rec = tuple_
         ap = 0
@@ -196,9 +196,9 @@ class AveragePrecisionMeter:
     def compute_per_class_ap_with_interpolation(tuple_: Tuple[Tensor, Tensor]) -> Tensor:
         """
         Arguments:
-            tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
+            tuple_(Tuple[Tensor, Tensor]): precision and recall
         Returns:
-            ap(FloatTensor[1])
+            ap(Tensor[1])
         """
         prec, rec = tuple_
         ap = 0
@@ -221,13 +221,14 @@ class AveragePrecisionMeter:
     def compute_per_class_ap_with_11_point_interpolation(tuple_: Tuple[Tensor, Tensor]) -> Tensor:
         """
         Arguments:
-            tuple_[(FloatTensor[N]), (FloatTensor[N])]: precision and recall
+            tuple_(Tuple[Tensor, Tensor]): precision and recall
         Returns:
-            ap(FloatTensor[1])
+            ap(Tensor[1])
         """
         prec, rec = tuple_
+        dtype = rec.dtype
         ap = 0
-        for t in torch.linspace(0, 1, 11):
+        for t in torch.linspace(0, 1, 11, dtype=dtype):
             inds = torch.nonzero(rec >= t).squeeze()
             if inds.numel():
                 ap += (prec[inds].max() / 11)
