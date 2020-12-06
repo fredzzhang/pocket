@@ -330,6 +330,33 @@ Associate detection boxes with ground truth boxes
     * **scores**: (M,) Confidence scores for each detection
     * Returns: (M,) Binary labels for each detection
 
+`Properties:`
+* max_iou -> FloatTensor: Return the largest IoU with any ground truth instances for each detection
+* max_idx -> LongTensor: Return the index of ground truth instance each detection is associated with
+
+`Examples:`
+```python
+>>> import torch
+>>> from pocket.utils import BoxAssociation
+>>> associate = BoxAssociation(0.5)
+>>> gt_boxes = torch.tensor([[10., 10., 50., 50.], [60., 60., 100., 100.]])
+>>> det_boxes = torch.tensor([
+... [9.5, 11.2, 49.5, 50.8, 0.99],      # A match for the first G.T. box
+... [10.9, 12.3, 52.4, 53.9, 0.45],     # Another match for the first G.T. box but with a lower score
+... [45.3, 52.7, 89.5, 78.2, 0.04],     # Not a match
+... [52.7, 59.4, 97.2, 102.8, 0.54],    # A match for the second G.T. box
+])
+>>> # Compute the binary labels for each detection
+>>> associate(gt_boxes, det_boxes[:, :4], det_boxes[:, -1])
+tensor([1., 0., 0., 1.])
+>>> # Show the index of ground truth instance each detection is associated with
+>>> associate.max_idx
+tensor([0, 0, 1, 1])
+>>> # Show the IoU with the associated ground truth instance
+>>> associate.max_iou
+tensor([0.9281, 0.7958, 0.2451, 0.7282])
+```    
+
 ---
 ### __`CLASS`__ pocket.utils.BoxPairAssociation(*min_iou: float, encoding: str = 'coord'*)
 
@@ -345,3 +372,7 @@ Associate detection box pairs with ground truth box pairs. The intersection over
     * **det_boxes**: Detection box pairs in a 2-tuple
     * **scores**: (M,) Confidence scores for each detected box pair
     * Returns: (M,) Binary labels for each detected box pair
+    
+`Properties:`
+* max_iou -> FloatTensor: Return the largest IoU with any ground truth instances for each detection
+* max_idx -> LongTensor: Return the index of ground truth instance each detection is associated with
