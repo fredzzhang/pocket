@@ -10,7 +10,7 @@ Australian Centre for Robotic Vision
 import torch
 
 from typing import Tuple
-from torch import FloatTensor
+from torch import FloatTensor, LongTensor
 
 from ..ops import box_iou
 
@@ -25,6 +25,24 @@ class BoxAssociation:
     def __init__(self, min_iou: float, encoding: str = 'coord') -> None:
         self.min_iou = min_iou
         self.encoding = encoding
+
+        self._max_iou = None
+        self._max_idx = None
+
+    @property
+    def max_iou(self) -> FloatTensor:
+        """Return the largest IoU with any ground truth instances for each detection"""
+        if self._max_iou is None:
+            raise NotImplementedError
+        else:
+            return self._max_iou
+    @property
+    def max_idx(self) -> LongTensor:
+        """Return the index of ground truth instance each detection is associated with"""
+        if self._max_idx is None:
+            raise NotImplementedError
+        else:
+            return self._max_idx
 
     def _iou(self, boxes_1: FloatTensor, boxes_2: FloatTensor) -> FloatTensor:
         """Compute intersection over union"""
@@ -42,8 +60,11 @@ class BoxAssociation:
         # Compute intersection over uion
         iou = self._iou(gt_boxes, det_boxes)
 
-        # Assign each detection to the ground truth with highest IoU
         max_iou, max_idx = iou.max(0)
+        self._max_iou = max_iou
+        self._max_idx = max_idx
+
+        # Assign each detection to the ground truth with highest IoU
         match = torch.zeros_like(iou)
         match[max_idx, torch.arange(iou.shape[1])] = max_iou
 
