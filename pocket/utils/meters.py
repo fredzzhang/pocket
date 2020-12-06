@@ -16,6 +16,25 @@ from collections import deque
 from typing import Optional, Iterable, Any, List, Union, Tuple
 from ..ops import to_tensor
 
+__all__ = [
+    'Meter', 'NumericalMeter', 'HandyTimer',
+    'AveragePrecisionMeter', 'DetectionAPMeter'
+]
+
+def div(numerator: Tensor, denom: Union[Tensor, int, float]) -> Tensor:
+    """Handle division by zero"""
+    if type(denom) in [int, float]:
+        if denom == 0:
+            return torch.zeros_like(numerator)
+        else:
+            return numerator / denom
+    elif type(denom) is Tensor:
+        zero_idx = torch.nonzero(denom == 0).squeeze(1)
+        denom[zero_idx] += 1e-8
+        return numerator / denom
+    else:
+        raise TypeError("Unsupported data type ", type(denom))
+
 class Meter:
     """
     Base class
@@ -86,16 +105,28 @@ class NumericalMeter(Meter):
             raise TypeError("Given element \'{}\' is not a numeral".format(x))
 
     def sum(self) -> Union[int, float]:
-        return sum(self._deque)
+        if len(self._deque):
+            return sum(self._deque)
+        else:
+            raise ValueError("Cannot take sum. The meter is empty.")
 
     def mean(self) -> float:
-        return sum(self._deque) / len(self._deque)
+        if len(self._deque):
+            return sum(self._deque) / len(self._deque)
+        else:
+            raise ValueError("Cannot take mean. The meter is empty.")
 
     def max(self) -> Union[int, float]:
-        return max(self._deque)
+        if len(self._deque):
+            return max(self._deque)
+        else:
+            raise ValueError("Cannot take max. The meter is empty.")
 
     def min(self) -> Union[int, float]:
-        return min(self._deque)
+        if len(self._deque):
+            return min(self._deque)
+        else:
+            raise ValueError("Cannot take min. The meter is empty.")
 
 class HandyTimer(NumericalMeter):
     """
@@ -290,14 +321,12 @@ class AveragePrecisionMeter:
 
     @staticmethod
     def compute_precision_and_recall(output: Tensor, labels: Tensor,
-            num_gt: Optional[Tensor] = None,
-            eps: float = 1e-8) -> Tuple[Tensor, Tensor]:
+            num_gt: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
         """
         Arguments:
             output(FloatTensor[N, K])
             labels(FloatTensor[N, K])
             num_gt(Tensor[K])
-            eps(float): A small constant to avoid division by zero
         Returns:
             prec(FloatTensor[N, K])
             rec(FloatTensor[N, K])
@@ -312,10 +341,9 @@ class AveragePrecisionMeter:
         fp = fp.cumsum(0)
 
         prec = tp / (tp + fp)
-        # NOTE: The insignificant constant could potentially result in 100%
-        # recall being unreachable. Be cautious about its magnitude.
-        rec = tp / (labels.sum(0) + eps) if num_gt is None else \
-            tp / (num_gt + eps)
+        rec = div(tp, labels.sum(0)) if num_gt is None \
+            else div(tp, num_gt)
+
         return prec, rec
 
     def append(self, output: Tensor, labels: Tensor) -> None:
@@ -512,14 +540,12 @@ class DetectionAPMeter:
 
     @staticmethod
     def compute_pr_for_each(output: Tensor, labels: Tensor,
-            num_gt: Optional[Union[int, float]] = None,
-            eps: float = 1e-8) -> Tuple[Tensor, Tensor]:
+            num_gt: Optional[Union[int, float]] = None) -> Tuple[Tensor, Tensor]:
         """
         Arguments:
             output(FloatTensor[N])
             labels(FloatTensor[N]): Binary labels for each sample
             num_gt(int or float): Number of ground truth instances
-            eps(float): A small constant to avoid division by zero
         Returns:
             prec(FloatTensor[N])
             rec(FloatTensor[N])
@@ -532,8 +558,8 @@ class DetectionAPMeter:
         fp = fp.cumsum(0)
 
         prec = tp / (tp + fp)
-        rec = tp / (labels.sum() + eps) if num_gt is None else \
-            tp / (num_gt + eps)
+        rec = div(tp, labels.sum()) if num_gt is None \
+            else div(tp, num_gt)
 
         return prec, rec
 
