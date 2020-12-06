@@ -26,11 +26,11 @@ def box_iou(boxes_1: Tensor, boxes_2: Tensor, encoding: str = 'coord') -> Tensor
     if encoding == 'coord':
         return boxes.box_iou(boxes_1, boxes_2)
     elif encoding == 'pixel':
-        w1 = boxes_1[:, 2] - boxes_1[:, 0] + 1
-        h1 = boxes_1[:, 3] - boxes_1[:, 1] + 1
+        w1 = (boxes_1[:, 2] - boxes_1[:, 0] + 1).clamp(min=0)
+        h1 = (boxes_1[:, 3] - boxes_1[:, 1] + 1).clamp(min=0)
         s1 = w1 * h1
-        w2 = boxes_2[:, 2] - boxes_2[:, 0] + 1
-        h2 = boxes_2[:, 3] - boxes_2[:, 1] + 1
+        w2 = (boxes_2[:, 2] - boxes_2[:, 0] + 1).clamp(min=0)
+        h2 = (boxes_2[:, 3] - boxes_2[:, 1] + 1).clamp(min=0)
         s2 = w2 * h2
 
         n1 = len(boxes_1); n2 = len(boxes_2)
@@ -42,8 +42,8 @@ def box_iou(boxes_1: Tensor, boxes_2: Tensor, encoding: str = 'coord') -> Tensor
         
         x1, y1 = torch.max(boxes_1[i, :2], boxes_2[j, :2]).unbind(1)
         x2, y2 = torch.min(boxes_1[i, 2:], boxes_2[j, 2:]).unbind(1)
-        w_intr = x2 - x1 + 1
-        h_intr = y2 - y1 + 1
+        w_intr = (x2 - x1 + 1).clamp(min=0)
+        h_intr = (y2 - y1 + 1).clamp(min=0)
         s_intr = w_intr * h_intr
 
         iou = s_intr / (s1[i] + s2[j] - s_intr)
