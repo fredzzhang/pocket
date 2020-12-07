@@ -157,6 +157,8 @@ class AveragePrecisionMeter:
         chunksize(int, optional): The approximate size the given iterable will be split
             into for each worker. Use -1 to make the argument adaptive to iterable size
             and number of workers
+        precision(int, optional): Precision used for float-point operations. Choose
+            amongst 64, 32 and 16. Default is 64
         output(tensor[N, K], optinoal): Network outputs with N examples and K classes
         labels(tensor[N, K], optinoal): Binary labels
 
@@ -179,26 +181,28 @@ class AveragePrecisionMeter:
 
     """
     def __init__(self, num_gt: Optional[Iterable] = None,
-            algorithm: str = "AUC", chunksize: int = -1, 
+            algorithm: str = 'AUC', chunksize: int = -1,
+            precision: int = 64,
             output: Optional[Tensor] = None,
             labels: Optional[Tensor] = None) -> None:
-        self.num_gt = torch.as_tensor(num_gt) \
+        self._dtype = eval('torch.float' + str(precision))
+        self.num_gt = torch.as_tensor(num_gt, dtype=self._dtype) \
             if num_gt is not None else None
         self.algorithm = algorithm
         self._chunksize = chunksize
         
         is_none = (output is None, labels is None)
         if is_none == (True, True):
-            self._output = torch.Tensor([])
-            self._labels = torch.Tensor([])
+            self._output = torch.tensor([], dtype=self._dtype)
+            self._labels = torch.tensor([], dtype=self._dtype)
         elif is_none == (False, False):
-            self._output = output.detach().cpu().float()
-            self._labels = labels.detach().cpu().float()
+            self._output = output.detach().cpu().to(self._dtype)
+            self._labels = labels.detach().cpu().to(self._dtype)
         else:
             raise AssertionError("Output and labels should both be given or None")
 
-        self._output_temp = [torch.Tensor([])]
-        self._labels_temp = [torch.Tensor([])]
+        self._output_temp = [torch.tensor([], dtype=self._dtype)]
+        self._labels_temp = [torch.tensor([], dtype=self._dtype)]
 
     @staticmethod
     def compute_per_class_ap_as_auc(tuple_: Tuple[Tensor, Tensor]) -> Tensor:
@@ -275,19 +279,19 @@ class AveragePrecisionMeter:
         classes are retained for each sample.
 
         Arguments:
-            output(FloatTensor[N, K])
-            labels(FloatTensor[N, K])
+            output(Tensor[N, K])
+            labels(Tensor[N, K])
             num_gt(Tensor[K]): Number of ground truth instances for each class
             algorithm(str): AP evaluation algorithm
             chunksize(int, optional): The approximate size the given iterable will be split
                 into for each worker. Use -1 to make the argument adaptive to iterable size
                 and number of workers
         Returns:
-            ap(FloatTensor[K])
+            ap(Tensor[K])
         """
         prec, rec = cls.compute_precision_and_recall(output, labels, 
             num_gt=num_gt)
-        ap = torch.zeros(output.shape[1])
+        ap = torch.zeros(output.shape[1], dtype=prec.dtype)
         # Use the logic from pool._map_async to compute chunksize
         # https://github.com/python/cpython/blob/master/Lib/multiprocessing/pool.py
         # NOTE: Inappropriate chunksize will cause [Errno 24]Too many open files
@@ -324,12 +328,12 @@ class AveragePrecisionMeter:
             num_gt: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
         """
         Arguments:
-            output(FloatTensor[N, K])
-            labels(FloatTensor[N, K])
+            output(Tensor[N, K])
+            labels(Tensor[N, K])
             num_gt(Tensor[K])
         Returns:
-            prec(FloatTensor[N, K])
-            rec(FloatTensor[N, K])
+            prec(Tensor[N, K])
+            rec(Tensor[N, K])
         """
         order = output.argsort(0, descending=True)
         tp = labels[
@@ -357,8 +361,8 @@ class AveragePrecisionMeter:
         if isinstance(output, torch.Tensor) and isinstance(labels, torch.Tensor):
             assert output.shape == labels.shape, \
                 "Output scores do not match the dimension of labelss"
-            self._output_temp.append(output.detach().cpu().float())
-            self._labels_temp.append(labels.detach().cpu().float())
+            self._output_temp.append(output.detach().cpu().to(self._dtype))
+            self._labels_temp.append(labels.detach().cpu().to(self._dtype))
         else:
             raise TypeError("Arguments should both be torch.Tensor")
 
@@ -371,10 +375,10 @@ class AveragePrecisionMeter:
                 since last evaluation
         """
         if not keep_old:
-            self._output = torch.Tensor([])
-            self._labels = torch.Tensor([])
-        self._output_temp = [torch.Tensor([])]
-        self._labels_temp = [torch.Tensor([])]
+            self._output = torch.tensor([], dtype=self._dtype)
+            self._labels = torch.tensor([], dtype=self._dtype)
+        self._output_temp = [torch.tensor([], dtype=self._dtype)]
+        self._labels_temp = [torch.tensor([], dtype=self._dtype)]
 
     def eval(self) -> Tensor:
         """
@@ -406,7 +410,7 @@ class AveragePrecisionMeter:
         else:
             print("WARNING: Collected results are empty. "
                 "Return zero AP for all class.")
-            return torch.zeros(self._output.shape[1])
+            return torch.zeros(self._output.shape[1], dtype=self._dtype)
 
 class DetectionAPMeter:
     """
@@ -425,6 +429,8 @@ class DetectionAPMeter:
             'INT': Interpolation algorithm with all points used in voc2010
             'AUC': Precisely as the area under precision-recall curve
         nproc(int, optional): The number of processes used to compute mAP. Default: 20
+        precision(int, optional): Precision used for float-point operations. Choose
+            amongst 64, 32 and 16. Default is 64
         output(list[tensor], optinoal): A collection of output scores for K classes
         labels(list[tensor], optinoal): Binary labels
 
@@ -451,6 +457,7 @@ class DetectionAPMeter:
     """
     def __init__(self, num_cls: int, num_gt: Optional[Tensor] = None,
             algorithm: str = 'AUC', nproc: int = 20,
+            precision: int = 64,
             output: Optional[List[Tensor]] = None,
             labels: Optional[List[Tensor]] = None) -> None:
         if num_gt is not None and len(num_gt) != num_cls:
@@ -462,20 +469,21 @@ class DetectionAPMeter:
             [None for _ in range(num_cls)]
         self.algorithm = algorithm
         self._nproc = nproc
+        self._dtype = eval('torch.float' + str(precision))
 
         is_none = (output is None, labels is None)
         if is_none == (True, True):
-            self._output = [torch.Tensor([]) for _ in range(num_cls)]
-            self._labels = [torch.Tensor([]) for _ in range(num_cls)]
+            self._output = [torch.tensor([], dtype=self._dtype) for _ in range(num_cls)]
+            self._labels = [torch.tensor([], dtype=self._dtype) for _ in range(num_cls)]
         elif is_none == (False, False):
             assert len(output) == len(labels), \
                 "The given output does not have the same number of classes as labels"
             assert len(output) == num_cls, \
                 "The number of classes in the given output does not match the argument"
             self._output = to_tensor(output, 
-                input_format='list', dtype=torch.float32, device='cpu')
+                input_format='list', dtype=self._dtype, device='cpu')
             self._labels = to_tensor(labels,
-                input_format='list', dtype=torch.float32, device='cpu')
+                input_format='list', dtype=self._dtype, device='cpu')
         else:
             raise AssertionError("Output and labels should both be given or None")
 
@@ -490,15 +498,15 @@ class DetectionAPMeter:
         could have different number of predictions.
 
         Arguments:
-            output(list[FloatTensor])
-            labels(list[FloatTensor])
+            output(list[Tensor])
+            labels(list[Tensor])
             num_gt(iterable): Number of ground truth instances for each class
             nproc(int, optional): The number of processes used to compute mAP
             algorithm(str): AP evaluation algorithm
         Returns:
-            ap(FloatTensor[K])
+            ap(Tensor[K])
         """
-        ap = torch.zeros(len(output))
+        ap = torch.zeros(len(output), dtype=output[0].dtype)
         max_rec = torch.zeros_like(ap)
 
         if algorithm == 'INT':
@@ -543,12 +551,12 @@ class DetectionAPMeter:
             num_gt: Optional[Union[int, float]] = None) -> Tuple[Tensor, Tensor]:
         """
         Arguments:
-            output(FloatTensor[N])
-            labels(FloatTensor[N]): Binary labels for each sample
+            output(Tensor[N])
+            labels(Tensor[N]): Binary labels for each sample
             num_gt(int or float): Number of ground truth instances
         Returns:
-            prec(FloatTensor[N])
-            rec(FloatTensor[N])
+            prec(Tensor[N])
+            rec(Tensor[N])
         """
         order = output.argsort(descending=True)
 
@@ -594,8 +602,8 @@ class DetectionAPMeter:
         """
         num_cls = len(self._output_temp)
         if not keep_old:
-            self._output = [torch.Tensor([]) for _ in range(num_cls)]
-            self._labels = [torch.Tensor([]) for _ in range(num_cls)]
+            self._output = [torch.tensor([], dtype=self._dtype) for _ in range(num_cls)]
+            self._labels = [torch.tensor([], dtype=self._dtype) for _ in range(num_cls)]
         self._output_temp = [[] for _ in range(num_cls)]
         self._labels_temp = [[] for _ in range(num_cls)]
 
@@ -607,10 +615,10 @@ class DetectionAPMeter:
             torch.Tensor[K]: Average precisions for K classes
         """
         self._output = [torch.cat([
-            out1, torch.as_tensor(out2, dtype=torch.float32)
+            out1, torch.as_tensor(out2, dtype=self._dtype)
         ]) for out1, out2 in zip(self._output, self._output_temp)]
         self._labels = [torch.cat([
-            tar1, torch.as_tensor(tar2, dtype=torch.float32)
+            tar1, torch.as_tensor(tar2, dtype=self._dtype)
         ]) for tar1, tar2 in zip(self._labels, self._labels_temp)]
         self.reset(keep_old=True)
 
