@@ -84,6 +84,14 @@ Meter to compute average precision
     * **keep_old**: If True, only clear the newly collected statistics since last evaluation
 * eval() -> _Tensor_: Evaluate the average precision based on collected statistics
 
+`Class Methods:`
+* compute_ap(*output: Tensor, labels: Tensor, num_gt: Optional[Tensor] = None, algorithm: str = 'AUC', chunksize: int = -1*) -> Tensor: Compute AP for all classes, assuming the numbers of examples are identical across all classes
+    * **output**: (N, K) Output scores for N examples and K classes
+    * **labels**: (N, K) Binary labels for each example and class
+    * **num_gt**: (K,) Number of ground truth instances for each class. When left as None, all ground truth instances are assumed to have been retrieved (100% recall)
+    * **algorithm**: AP evaluation algorithm, same as in the parameter list of the class
+    * **chunksize**: The approximate size the given iterable will be split into for each worker. Use -1 to make the argument adaptive to iterable size and number of workers
+
 `Static Methods:`
 * compute_per_class_ap_as_auc(*tuple_: Tuple[Tensor, Tensor])*) -> _Tensor_: Compute AP as area under curve (AUC)
     * **tuple_[0]**: (N,) Precision values
@@ -139,11 +147,25 @@ A variant of AP meter, where network outputs are assumed to be class-specific. D
     * **keep_old**: If True, only clear the newly collected statistics since last evaluation
 * eval() -> _Tensor_: Evaluate the average precision based on collected statistics
 
+`Class Methods:`
+* compute_ap(*output: List[Tensor], labels: List[Tensor], num_gt: Iterable, nproc: int, algorithm: str = 'AUC'*) -> Tuple[Tensor, Tensor]: Compute average precision under the detection setting. Only scores of the predicted classes are retained for each sample. As a result, different classes could have different number of examples.
+    * **output**: (K,) Output scores for K classes
+    * **labels**: (K,) Binary labels for K classes
+    * **num_gt**: Number of ground truth instances for each class
+    * **nproc**: Number of processes to be used for computation
+    * **algorithm**: AP evaluation algorithm, same as in the parameter list of the class
+* compute_ap_for_each(*tuple_: Tuple[int, int, Tensor, Tensor, Callable]*) -> Tuple[Tensor, Tensor]: Compute AP for one class
+    * **tuple[0]**: Index of the class. This is used to make error message more readable
+    * **tuple[1]**: Number of ground truth instances.  When left as None, all ground truth instances are assumed to have been retrieved (100% recall)
+    * **tuple[2]**: Output scores
+    * **tuple[3]**: Binary labels
+    * **tuple[4]**: Function handle of the AP evaluation algorithm
+
 `Static Methods:`
 * compute_pr_for_each(_output: Tensor, labels: Tensor, num_gt: Optional[Union[int, float]] = None, eps: float = 1e-8_) -> _Tuple[Tensor, Tensor]_: Compute precision and recall for one class
     * **output**: (N,) Output scores for each sample
     * **labels**: (N,) Binary labels for each sample
-    * **num_gt**: Number of ground truth instances
+    * **num_gt**: Number of ground truth instances. When left as None, all ground truth instances are assumed to have been retrieved (100% recall)
     * **eps**: A small constant to avoid division by zero
 
 `Examples:`
