@@ -491,7 +491,8 @@ class DetectionAPMeter:
         self._labels_temp = [[] for _ in range(num_cls)]
     
     @classmethod
-    def compute_ap(cls, output, labels, num_gt, nproc, algorithm='AUC'):
+    def compute_ap(cls, output: List[Tensor], labels: List[Tensor],
+            num_gt: Iterable, nproc: int, algorithm: str = 'AUC') -> Tuple[Tensor, Tensor]:
         """
         Compute average precision under the detection setting. Only scores of the 
         predicted classes are retained for each sample. As a result, different classes
@@ -505,6 +506,7 @@ class DetectionAPMeter:
             algorithm(str): AP evaluation algorithm
         Returns:
             ap(Tensor[K])
+            max_rec(Tensor[K])
         """
         ap = torch.zeros(len(output), dtype=output[0].dtype)
         max_rec = torch.zeros_like(ap)
@@ -520,6 +522,16 @@ class DetectionAPMeter:
                 AveragePrecisionMeter.compute_per_class_ap_as_auc
         else:
             raise ValueError("Unknown algorithm option {}.".format(algorithm))
+
+        # Avoid multiprocessing when the number of processes is fewer than two
+        if nproc < 2:
+            for idx in range(len(output)):
+                ap[idx], max_rec[idx] = cls.compute_ap_for_each((
+                    idx, list(num_gt)[idx],
+                    output[idx], labels[idx],
+                    algorithm_handle
+                ))
+            return ap, max_rec
 
         with multiprocessing.Pool(nproc) as pool:
             for idx, results in enumerate(pool.map(
