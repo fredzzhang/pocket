@@ -566,7 +566,7 @@ class DetectionAPMeter:
         fp = fp.cumsum(0)
 
         prec = tp / (tp + fp)
-        rec = div(tp, labels.sum()) if num_gt is None \
+        rec = div(tp, labels.sum().item()) if num_gt is None \
             else div(tp, num_gt)
 
         return prec, rec
