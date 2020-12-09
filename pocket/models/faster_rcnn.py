@@ -108,8 +108,18 @@ model_urls = {
         'https://download.pytorch.org/models/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth',
 }
 
+KEEP = [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18,
+    19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
+    37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52,
+    53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 67, 70,
+    72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87,
+    88, 89, 90
+]
+KEEPX4 = torch.arange(4).repeat(81, 1) + torch.as_tensor(KEEP).unsqueeze(1) * 4
+
 def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
-        num_classes=91, pretrained_backbone=True, **kwargs):
+        num_classes=81, pretrained_backbone=True, **kwargs):
     """
     Construct Faster R-CNN with a ResNet-FPN backbone
 
@@ -118,7 +128,7 @@ def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
             Refer to torchvision.models.resnet.__dict__ for details
         pretrained(bool, optional): If True, load weights for the detector
             pretrained on MS COCO. Only ResNet50-FPN is supported for the moment.
-        num_classes(int, optional): Number of target classes, default: 91(COCO)
+        num_classes(int, optional): Number of target classes.
         pretrained_backbone(bool, optional): If True, load weights for backbone
             pre-trained on ImageNet
 
@@ -132,6 +142,17 @@ def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
     if pretrained and backbone_name == 'resnet50':
         state_dict = models.utils.load_state_dict_from_url(
             model_urls['fasterrcnn_resnet50_fpn_coco'])
+        if num_classes == 81:
+            # Remove the parameters for the additional classes
+            state_dict['roi_heads.box_predictor.cls_score.weight'] = \
+                state_dict['roi_heads.box_predictor.cls_score.weight'][KEEP]
+            state_dict['roi_heads.box_predictor.cls_score.bias'] = \
+                state_dict['roi_heads.box_predictor.cls_score.bias'][KEEP]
+            state_dict['roi_heads.box_predictor.bbox_pred.weight'] = \
+                state_dict['roi_heads.box_predictor.bbox_pred.weight'][KEEPX4.flatten()]
+            state_dict['roi_heads.box_predictor.bbox_pred.bias'] = \
+                state_dict['roi_heads.box_predictor.bbox_pred.bias'][KEEPX4.flatten()]
+
         model.load_state_dict(state_dict)
     elif pretrained:
         print("WARNING: No pretrained detector on MS COCO with {}.".format(backbone_name),
