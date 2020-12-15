@@ -13,7 +13,7 @@ import torchvision
 
 __all__ = [
     'to_tensor', 'horizontal_flip_boxes', 'horizontal_flip',
-    'ToTensor', 'HorizontalFlip', 'Flatten'
+    'ToTensor', 'RandomHorizontalFlip', 'Flatten'
 ]
 
 def _to_list_of_tensor(x, dtype=None, device=None):
@@ -133,7 +133,7 @@ class ToTensor:
         reprstr += ')'
         return reprstr
 
-class HorizontalFlip:
+class RandomHorizontalFlip:
     """Horizontally flip an image and its associated bounding boxes if any"""
     def __init__(self, prob=0.5):
         self.prob = prob
