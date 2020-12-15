@@ -8,10 +8,12 @@ Australian Centre for Robotic Vision
 """
 
 import torch
+import random
 import torchvision
 
 __all__ = [
-    'to_tensor', 'ToTensor', 'Flatten'
+    'to_tensor', 'horizontal_flip_boxes', 'horizontal_flip',
+    'ToTensor', 'HorizontalFlip', 'Flatten'
 ]
 
 def _to_list_of_tensor(x, dtype=None, device=None):
@@ -39,6 +41,72 @@ def to_tensor(x, input_format='tensor', dtype=None, device=None):
     else:
         raise ValueError("Unsupported format {}".format(input_format))
 
+def horizontal_flip_boxes(w, boxes, encoding='coords'):
+    """
+    Horizontally flip bounding boxes with respect to an image.
+
+    Parameters
+    ----------
+    w : int
+        Width of the image, to which given boxes belong.
+    boxes : Tensor
+        Bounding box tensors (N, 4) in the format x1, y1, x2, y2.
+    encoding : str, optional
+        Encoding method of the bounding boxes. Choose between 'coords' and 'pixel'.
+        Using 'coords' implies the boxes are encoded as coordinates, which mean the
+        values are no more than the dimensions of the image. Using 'pixel' implies
+        the boxes are encoded as pixel indices, meaning the largest values are no
+        more than the dimensions of the image minus one (Default is 'coords').
+
+    Returns
+    -------
+    boxes: Tensor
+        Flipped bounding box tensors (N, 4) in the same format and encoding.
+    """
+    if encoding == 'coords':
+        boxes[:, 0] = w - boxes[:, 0]
+        boxes[:, 2] = w - boxes[:, 2]
+    elif encoding == 'pixel':
+        boxes[:, 0] = w - boxes[:, 0] - 1
+        boxes[:, 2] = w - boxes[:, 2] - 1
+    else:
+        raise ValueError("Unknown box encoding \'{}\'".format(encoding))
+    return boxes
+
+def horizontal_flip(image, boxes=None, encoding='coords'):
+    """
+    Horizontally flip an image and its associated bounding boxes if any.
+
+    Parameters
+    ----------
+    image : PIL.Image
+        Input image.
+    boxes : Tensor, optional
+        Bounding box tensors (N, 4) in the format x1, y1, x2, y2. When left as None
+        only the image will be flipped (Default is None).
+    encoding : str, optional
+        Encoding method of the bounding boxes. Choose between 'coords' and 'pixel'.
+        Using 'coords' implies the boxes are encoded as coordinates, which mean the
+        values are no more than the dimensions of the image. Using 'pixel' implies
+        the boxes are encoded as pixel indices, meaning the largest values are no
+        more than the dimensions of the image minus one (Default is 'coords').
+
+    Returns
+    -------
+    image: PIL.Image
+        Input image horizontally flipped.
+    boxes: Tensor
+        Flipped bounding box tensors (N, 4) in the same format and encoding. This will
+        only be returned when the input argument `boxes` is not None.
+    """
+    image = torchvision.transforms.functional.hflip(image)
+    w, _ = image.size
+    if boxes is None:
+        return image
+    else:
+        boxes = horizontal_flip_boxes(w, boxes, encoding=encoding)
+    return image, boxes
+
 class ToTensor:
     """Convert to tensor"""
     def __init__(self, input_format='tensor', dtype=None, device=None):
@@ -60,6 +128,18 @@ class ToTensor:
         reprstr += repr(self.device)
         reprstr += ')'
         return reprstr
+
+class HorizontalFlip:
+    """Horizontally flip an image and its associated bounding boxes if any"""
+    def __init__(self, prob=0.5):
+        self.prob = prob
+    def __call__(self, image, boxes=None, encoding='coords'):
+        prob = random.random()
+        if prob < self.prob and boxes is None:
+            return image
+        elif prob < self.prob and boxes is not None:
+            return image, boxes
+        return horizontal_flip(image, boxes, encoding)
 
 class Flatten(torch.nn.Module):
     """Flatten a tensor"""
