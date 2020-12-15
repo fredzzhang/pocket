@@ -66,9 +66,13 @@ def horizontal_flip_boxes(w, boxes, encoding='coords'):
     if encoding == 'coords':
         boxes[:, 0] = w - boxes[:, 0]
         boxes[:, 2] = w - boxes[:, 2]
+        boxes[:, 0].clamp_(0, w)
+        boxes[:, 2].clamp_(0, w)
     elif encoding == 'pixel':
         boxes[:, 0] = w - boxes[:, 0] - 1
         boxes[:, 2] = w - boxes[:, 2] - 1
+        boxes[:, 0].clamp_(0, w - 1)
+        boxes[:, 2].clamp_(0, w - 1)
     else:
         raise ValueError("Unknown box encoding \'{}\'".format(encoding))
     return boxes
