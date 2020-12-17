@@ -60,7 +60,7 @@ def relocate_to_device(x, device, **kwargs):
     elif isinstance(x, list):
         return [relocate_to_device(item, device, **kwargs) for item in x]
     elif isinstance(x, tuple):
-        return (relocate_to_device(item, device, **kwargs) for item in x)
+        return [relocate_to_device(item, device, **kwargs) for item in x]
     elif isinstance(x, dict):
         for key in x:
             x[key] = relocate_to_device(x[key], device, **kwargs)
