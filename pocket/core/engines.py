@@ -139,7 +139,7 @@ class LearningEngine(State):
                 'milestones': [50,100],
                 'gamma': 0.1
             } if lr_sched_params is None else lr_sched_params
-        self._lr_scheduler = None if not lr_scheduler \
+        self._state.lr_scheduler = None if not lr_scheduler \
             else torch.optim.lr_scheduler.MultiStepLR(self._state.optimizer, **lr_sched_params)
 
         self._state.running_loss = NumericalMeter(maxlen=print_interval)
@@ -181,9 +181,9 @@ class LearningEngine(State):
         self._state.epoch += 1
 
     def _on_end_epoch(self):
+        if self._state.lr_scheduler is not None:
+            self._state.lr_scheduler.step()
         self.save_checkpoint()
-        if self._lr_scheduler is not None:
-            self._lr_scheduler.step()
 
     def _on_start_iteration(self):
         self._state.iteration += 1
@@ -232,13 +232,19 @@ class LearningEngine(State):
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.cpu()
-        torch.save({
+        checkpoint = {
             'iteration': self._state.iteration,
             'epoch': self._state.epoch,
             'model_state_dict': model_state_dict,
             'optim_state_dict': optim_copy.state_dict()
-            }, os.path.join(self._cache_dir, 'ckpt_{:05d}_{:02d}.pt'.\
-                    format(self._state.iteration, self._state.epoch)))
+        }
+        if self._state.lr_scheduler is not None:
+            checkpoint['scheduler_state_dict'] = self._state.lr_scheduler.state_dict()
+        # Cache the checkpoint
+        torch.save(checkpoint, os.path.join(
+            self._cache_dir,
+            'ckpt_{:05d}_{:02d}.pt'.format(self._state.iteration, self._state.epoch)
+        ))
 
     def save_snapshot(self) -> None:
         """Save a snapshot of the engine state"""
