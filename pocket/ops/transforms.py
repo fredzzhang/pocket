@@ -63,6 +63,7 @@ def horizontal_flip_boxes(w, boxes, encoding='coords'):
     boxes: Tensor
         Flipped bounding box tensors (N, 4) in the same format and encoding.
     """
+    boxes = boxes.clone()
     if encoding == 'coords':
         x_min = w - boxes[:, 2]
         x_max = w - boxes[:, 0]
