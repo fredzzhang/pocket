@@ -64,15 +64,15 @@ def horizontal_flip_boxes(w, boxes, encoding='coords'):
         Flipped bounding box tensors (N, 4) in the same format and encoding.
     """
     if encoding == 'coords':
-        boxes[:, 0] = w - boxes[:, 0]
-        boxes[:, 2] = w - boxes[:, 2]
-        boxes[:, 0].clamp_(0, w)
-        boxes[:, 2].clamp_(0, w)
+        x_min = w - boxes[:, 2]
+        x_max = w - boxes[:, 0]
+        boxes[:, 0] = torch.clamp(x_min, 0, w)
+        boxes[:, 2] = torch.clamp(x_max, 0, w)
     elif encoding == 'pixel':
-        boxes[:, 0] = w - boxes[:, 0] - 1
-        boxes[:, 2] = w - boxes[:, 2] - 1
-        boxes[:, 0].clamp_(0, w - 1)
-        boxes[:, 2].clamp_(0, w - 1)
+        x_min = w - boxes[:, 2] - 1
+        x_max = w - boxes[:, 0] - 1
+        boxes[:, 0] = torch.clamp(x_min, 0, w - 1)
+        boxes[:, 2] = torch.clamp(x_max, 0, w - 1)
     else:
         raise ValueError("Unknown box encoding \'{}\'".format(encoding))
     return boxes
