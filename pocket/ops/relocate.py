@@ -16,7 +16,7 @@ def relocate_to_cpu(x):
     elif isinstance(x, list):
         return [relocate_to_cpu(item) for item in x]
     elif isinstance(x, tuple):
-        return (relocate_to_cpu(item) for item in x)
+        return tuple(relocate_to_cpu(item) for item in x)
     elif isinstance(x, dict):
         for key in x:
             x[key] = relocate_to_cpu(x[key])
@@ -38,7 +38,7 @@ def relocate_to_cuda(x, device=None, **kwargs):
     elif isinstance(x, list):
         return [relocate_to_cuda(item, device, **kwargs) for item in x]
     elif isinstance(x, tuple):
-        return (relocate_to_cuda(item, device, **kwargs) for item in x)
+        return tuple(relocate_to_cuda(item, device, **kwargs) for item in x)
     elif isinstance(x, dict):
         for key in x:
             x[key] = relocate_to_cuda(x[key], device, **kwargs)
@@ -60,7 +60,7 @@ def relocate_to_device(x, device, **kwargs):
     elif isinstance(x, list):
         return [relocate_to_device(item, device, **kwargs) for item in x]
     elif isinstance(x, tuple):
-        return [relocate_to_device(item, device, **kwargs) for item in x]
+        return tuple(relocate_to_device(item, device, **kwargs) for item in x)
     elif isinstance(x, dict):
         for key in x:
             x[key] = relocate_to_device(x[key], device, **kwargs)

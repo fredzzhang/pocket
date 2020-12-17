@@ -20,7 +20,7 @@ def _to_list_of_tensor(x, dtype=None, device=None):
     return [torch.as_tensor(item, dtype=dtype, device=device) for item in x]
 
 def _to_tuple_of_tensor(x, dtype=None, device=None):
-    return (torch.as_tensor(item, dtype=dtype, device=device) for item in x)
+    return tuple(torch.as_tensor(item, dtype=dtype, device=device) for item in x)
 
 def _to_dict_of_tensor(x, dtype=None, device=None):
     return dict([(k, torch.as_tensor(v, dtype=dtype, device=device)) for k, v in x.items()])
