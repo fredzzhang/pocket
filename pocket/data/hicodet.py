@@ -20,6 +20,9 @@ class HICODetSubset(DataSubset):
     def filename(self, idx: int) -> str:
         """Override: return the image file name in the subset"""
         return self._filenames[self._idx[self.pool[idx]]]
+    def image_size(self, idx: int) -> Tuple[int, int]:
+        """Override: return the size (width, height) of an image in the subset"""
+        return self._image_sizes[self._idx[self.pool[idx]]]
     @property
     def anno_interaction(self) -> List[int]:
         """Override: Number of annotated box pairs for each interaction class"""
@@ -260,6 +263,10 @@ class HICODet(ImageDataset):
         """Return the image file name given the index"""
         return self._filenames[self._idx[idx]]
 
+    def image_size(self, idx: int) -> Tuple[int, int]:
+        """Return the size (width, height) of an image"""
+        return self._image_sizes[self._idx[idx]]
+
     def _load_annotation_and_metadata(self, f: dict) -> None:
         """
         Arguments:
@@ -279,6 +286,7 @@ class HICODet(ImageDataset):
 
         self._anno = f['annotation']
         self._filenames = f['filenames']
+        self._image_sizes = f['size']
         self._class_corr = f['correspondence']
         self._empty_idx = f['empty']
         self._objects = f['objects']
