@@ -21,16 +21,9 @@ Pocket is a fairly lightweight library built on the pupular [PyTorch](https://py
 
 ## Key Features
 
-Pocket provides a range of engine classes that can perform training and testing with minimum amount of code. The following is a conceptual example.
-```python
-model = ...
-criterion = ...
-dataloader = ...
-# Instantiate the learning engine
-engine = Engine(model, criterion, dataloader)
-# Run the engine for a few epochs
-engine(10)
-```
+Pocket provides a range of engine classes that can perform training and testing with minimum amount of code. The following is a simple demo.
+
+![pocket_demo](https://user-images.githubusercontent.com/11484831/102730290-56742e80-4388-11eb-85a7-c1ad67884ba8.gif)
 
 Pocket provides two base classes of engines: __pocket.core.LearningEngine__ and __pocket.core.DistributedLearningEngine__ with the following features:
 - [x] CPU/GPU training
