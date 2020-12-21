@@ -206,7 +206,10 @@ class LearningEngine(State):
         self._state.optimizer.step()
 
     def _print_statistics(self):
-        num_iter = len(self._train_loader)
+        if hasattr(self._train_loader, '__len__'):
+            num_iter = len(self._train_loader)
+        else:
+            num_iter = len(list(self._train_loader))
         n_d = len(str(num_iter))
         print(
             "Epoch [{}/{}], Iter. [{}/{}], "

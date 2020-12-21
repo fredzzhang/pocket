@@ -41,7 +41,7 @@ The learning engine itself contains a state. Class attributes that envolve durin
 >>> target = data.sum(1)[:, None]
 >>> criterion = torch.nn.MSELoss()
 >>> # Use the network, loss function and dataloader as arguments to instantiate the engine
->>> engine = LearningEngine(m, criterion, list(zip(data, target)))
+>>> engine = LearningEngine(m, criterion, zip(data, target))
 >>> # Pass the number of epochs to run the engine
 >>> # The default print interval is 100 steps. Apart from the epoch and iteration numbers,
 >>> # the average loss and total running time within 100 steps are printed. Running time
