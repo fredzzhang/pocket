@@ -9,12 +9,13 @@ Australian Centre for Robotic Vision
 
 import os
 import pickle
+import numpy as np
 
 from PIL import Image
 from torch.utils.data import Dataset
 from typing import Any, Callable, List, Optional, Tuple
 
-__all__ = ['DataDict', 'ImageDataset', 'DataSubset']
+__all__ = ['DataDict', 'ImageDataset', 'DataSubset', 'DatasetConcat']
 
 class DataDict(dict):
     r"""
@@ -167,3 +168,51 @@ class DataSubset(Dataset):
             return getattr(self.dataset, key)
         else:
             raise AttributeError("Given dataset has no attribute \'{}\'".format(key))
+
+class DatasetConcat(Dataset):
+    """Combine multiple datasets into one
+
+    Parameters:
+    -----------
+    args: List[Dataset]
+        A list of datasets to be concatented
+    """
+    def __init__(self, *args: Dataset) -> None:
+        self.datasets = args
+        self.lengths = [len(dataset) for dataset in args]
+    def __len__(self) -> int:
+        return sum(self.lengths)
+    def __getitem__(self, idx: int) -> Any:
+        dataset_idx, intra_idx = self.compute_intra_idx(idx, self.lengths)
+        return self.datasets[dataset_idx][intra_idx]
+    @staticmethod
+    def compute_intra_idx(idx: int, groups: List[int]) -> Tuple[int, int]:
+        """Assume a sequence has been divided into multiple groups. Given
+        a global index and the number of items each group has, find the
+        corresponding group index and the intra index within the group
+
+        Parameters:
+        -----------
+        idx: int
+            Global index
+        groups: List[int]
+            Number of items in each group
+        
+        Returns:
+        --------
+        group_idx: int
+            Index of the group
+        intra_idx: int
+            Intra index within the group
+        """
+        if idx >= sum(groups):
+            raise ValueError(
+                "The global index should be smaller "
+                "than the length of the sequence."
+            )
+        groups = np.asarray(groups)
+        cumsum = groups.cumsum()
+        group_idx = np.where(idx < cumsum)[0].min()
+        cumsum = np.concatenate([np.zeros(1, dtype=int), cumsum])
+        intra_idx = idx - cumsum[group_idx]
+        return group_idx, intra_idx
