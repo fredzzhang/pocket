@@ -21,10 +21,11 @@ def draw_boxes(image, boxes, **kwargs):
             coordinates in the format (x1, y1, x2, y2)
         kwargs(dict): Parameters for PIL.ImageDraw.Draw.rectangle
     """
-    if isinstance(boxes, (torch.Tensor, np.ndarray)):
-        boxes = boxes.tolist()
-    elif not isinstance(boxes, list):
+    if isinstance(boxes, (torch.Tensor, list)):
+        boxes = np.asarray(boxes)
+    elif not isinstance(boxes, np.ndarray):
         raise TypeError("Bounding box coords. should be torch.Tensor, np.ndarray or list")
+    boxes = boxes.reshape(-1, 4).tolist()
 
     canvas = ImageDraw.Draw(image)
     for box in boxes:
@@ -50,6 +51,8 @@ def draw_box_pairs(image, boxes_1, boxes_2, width=1):
         boxes_2 = np.asarray(boxes_2)
     elif not isinstance(boxes_2, np.ndarray):
         raise TypeError("Bounding box coords. should be torch.Tensor, np.ndarray or list")
+    boxes_1 = boxes_1.reshape(-1, 4)
+    boxes_2 = boxes_2.reshape(-1, 4)
 
     canvas = ImageDraw.Draw(image)
     assert len(boxes_1) == len(boxes_2), "Number of boxes does not match between two given groups"
