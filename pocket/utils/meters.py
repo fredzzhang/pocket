@@ -312,7 +312,7 @@ class AveragePrecisionMeter:
         else:
             raise ValueError("Unknown algorithm option {}.".format(algorithm))
 
-        with multiprocessing.Pool() as pool:
+        with multiprocessing.get_context('spawn').Pool() as pool:
             for idx, result in enumerate(pool.imap(
                 func=algorithm_handle,
                 # NOTE: Use transpose instead of T for compatibility
@@ -533,7 +533,7 @@ class DetectionAPMeter:
                 ))
             return ap, max_rec
 
-        with multiprocessing.Pool(nproc) as pool:
+        with multiprocessing.get_context('spawn').Pool(nproc) as pool:
             for idx, results in enumerate(pool.map(
                 func=cls.compute_ap_for_each,
                 iterable=[(idx, ngt, out, gt, algorithm_handle) 
