@@ -132,8 +132,8 @@ class ImageDataset(Dataset):
     
     def __repr__(self) -> str:
         """Return the executable string representation"""
-        reprstr = self.__class__.__name__ + '(root=\"' + repr(self._root)
-        reprstr += '\")'
+        reprstr = self.__class__.__name__ + '(root=' + repr(self._root)
+        reprstr += ')'
         # Ignore the optional arguments
         return reprstr
 

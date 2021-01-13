@@ -107,11 +107,11 @@ class RoIFeatureExtractor(nn.Module):
 
     def __repr__(self):
         reprstr = self.__class__.__name__ + '('
-        reprstr += 'return_layer=\"'
-        reprstr += self._return_layer
-        reprstr += '\", backbone_name=\"'
-        reprstr += self._backbone_name
-        reprstr += '\", pretrained='
+        reprstr += 'return_layer='
+        reprstr += repr(self._return_layer)
+        reprstr += ', backbone_name='
+        reprstr += repr(self._backbone_name)
+        reprstr += ', pretrained='
         reprstr += str(self._pretrained)
         reprstr += ')'
         return reprstr

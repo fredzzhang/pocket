@@ -126,7 +126,7 @@ class ToTensor:
         )
     def __repr__(self):
         reprstr = self.__class__.__name__ + '('
-        reprstr += 'input_format=\'{}\''.format(self.input_format)
+        reprstr += 'input_format={}'.format(repr(self.input_format))
         reprstr += ', dtype='
         reprstr += repr(self.dtype)
         reprstr += ', device='

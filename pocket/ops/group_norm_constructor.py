@@ -28,7 +28,7 @@ class GroupNormConstructor:
 
     def __repr__(self):
         reprstr = self.__class__.__name__ + '('
-        reprstr += 'num_group='
+        reprstr += 'num_groups='
         reprstr += str(self.num_groups)
         for k in self.kwargs:
             reprstr += ', {}='.format(k)

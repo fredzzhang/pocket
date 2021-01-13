@@ -54,8 +54,7 @@ class Meter:
 
     def __repr__(self) -> str:
         reprstr = self.__class__.__name__ + '('
-        reprstr += str([item for item in self._deque])
-        reprstr += ', maxlen='
+        reprstr += 'maxlen='
         reprstr += str(self._maxlen)
         reprstr += ')'
         return reprstr
