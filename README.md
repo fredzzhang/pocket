@@ -66,12 +66,12 @@ Anaconda/miniconda is recommended for environment management. Follow the steps b
 
 ```bash
 # Create conda environment (python>=3.5)
-conda create --name pocket python=3.7
+conda create --name pocket python=3.8
 conda activate pocket
-# Install dependencies (pytorch cannot be lower than the suggested version)
+# Install dependencies
 conda install conda-build
 conda install -c anaconda cloudpickle
-conda install pytorch==1.1.0 torchvision==0.3.0 -c pytorch
+conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
 pip install matplotlib tqdm scipy
 # Install Pocket under any desired directory
 INSTALL_DIR=YOUR_CHOICE
