@@ -73,7 +73,7 @@ class DistributedLearningEngine(State):
         self._train_loader = train_loader
         self._verbal = verbal
         self._print_interval = print_interval
-        self._usa_amp = use_amp
+        self._use_amp = use_amp
         self._cache_dir = cache_dir
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
