@@ -90,7 +90,7 @@ class LearningEngine(State):
     def __init__(self,
             net: Module, criterion: Callable, train_loader: Iterable,
             optim: str = 'SGD', optim_params: Optional[dict] = None,
-            optim_state_dict: Optional[dict] = None,
+            optim_state_dict: Optional[dict] = None, use_amp: bool = True,
             lr_scheduler: bool = False, lr_sched_params: Optional[dict] = None,
             verbal: bool = True, print_interval: int = 100,
             cache_dir: str = './checkpoints'):
@@ -104,6 +104,7 @@ class LearningEngine(State):
         self._criterion =  criterion if not isinstance(criterion, torch.nn.Module) \
             else criterion.to(self._device)
         self._train_loader = train_loader
+        self._use_amp = use_amp
         self._verbal = verbal
         self._print_interval = print_interval
         self._cache_dir = cache_dir
@@ -131,6 +132,8 @@ class LearningEngine(State):
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
                         state[k] = v.to(self._device)
+        # Initialise gradient scaler
+        self._state.scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
         self._state.epoch = 0
         self._state.iteration = 0
 
@@ -195,11 +198,13 @@ class LearningEngine(State):
             self._print_statistics()
 
     def _on_each_iteration(self):
-        self._state.optimizer.zero_grad()
-        self._state.output = self._state.net(*self._state.inputs)
-        self._state.loss = self._criterion(self._state.output, self._state.targets)
-        self._state.loss.backward()
-        self._state.optimizer.step()
+        with torch.cuda.amp.autocast(enabled=self._use_amp):
+            self._state.output = self._state.net(*self._state.inputs)
+            self._state.loss = self._criterion(self._state.output, self._state.targets)
+        self._state.scaler.scale(self._state.loss).backward()
+        self._state.scaler.step(self._state.optimizer)
+        self._state.scaler.update()
+        self._state.optimizer.zero_grad(set_to_none=True)
 
     def _print_statistics(self):
         if hasattr(self._train_loader, '__len__'):
@@ -235,7 +240,8 @@ class LearningEngine(State):
             'iteration': self._state.iteration,
             'epoch': self._state.epoch,
             'model_state_dict': model_state_dict,
-            'optim_state_dict': optim_copy.state_dict()
+            'optim_state_dict': optim_copy.state_dict(),
+            'scaler_state_dict': self._state.scaler.state_dict()
         }
         if self._state.lr_scheduler is not None:
             checkpoint['scheduler_state_dict'] = self._state.lr_scheduler.state_dict()
