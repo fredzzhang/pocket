@@ -1,18 +1,25 @@
 """
-Samplers used for torch.utils.data.DataLoader
+Samplers
 
-Written by Frederic Zhang
-Australian National Univeristy
+Fred Zhang <frederic.zhang@anu.edu.au>
 
-Last updated in Oct. 2019
+The Australian National University
+Australian Centre for Robotic Vision
 """
 
 import os
+import math
+import copy
 import torch
 import pickle
+import bisect
 import datetime
 import numpy as np
 import torch.utils.data
+
+from itertools import repeat, chain
+from collections import defaultdict
+from torch.utils.data.sampler import Sampler, BatchSampler
 
 class OnlineBatchSampler:
     """
@@ -358,101 +365,92 @@ class StratifiedBatchSampler(torch.utils.data.Sampler):
     def __len__(self):
         return self._num_batch
 
+"""
+Batch sampler that groups images by aspect ratio
+https://github.com/pytorch/vision/blob/master/references/detection/group_by_aspect_ratio.py
+"""
 
-# NOTE: THIS CLASS IS DEPRECATED
-class StratifiedSampler(torch.utils.data.Sampler):
+def _repeat_to_at_least(iterable, n):
+    repeat_times = math.ceil(n / len(iterable))
+    repeated = chain.from_iterable(repeat(iterable, repeat_times))
+    return list(repeated)
+
+class GroupedBatchSampler(BatchSampler):
     """
-    Implementation of stratified sampling strategy
-
-    Given M strata/classes and indices of samples from each stratum, take a specified number
-    of samples from each stratum, and repeat a number of iterations
-
+    Wraps another sampler to yield a mini-batch of indices.
+    It enforces that the batch only contain elements from the same group.
+    It also tries to provide mini-batches which follows an ordering which is
+    as close as possible to the ordering from the original sampler.
     Arguments:
-        strata(list of Tensor or ndarray): (M,) strata indices
-        num_iter(int): number of iterations to be sampled
-        samples_per_stratum(Tensor or ndarray): (M,) number of samples taken from each stratum
+        sampler (Sampler): Base sampler.
+        group_ids (list[int]): If the sampler produces indices in range [0, N),
+            `group_ids` must be a list of `N` ints which contains the group id of each sample.
+            The group ids must be a continuous set of integers starting from
+            0, i.e. they must be in the range [0, num_groups).
+        batch_size (int): Size of mini-batch.
     """
-    def __init__(self, strata, num_iter, samples_per_stratum):
-        assert len(strata) == len(samples_per_stratum),\
-                'Number of strata {} not equal to the number of per-stratum samples specified'.\
-                format(len(strata), len(samples_per_stratum))
-        assert type(num_iter) is int,\
-                'Number of iterations should be of type int'
-        assert type(samples_per_stratum) in [np.ndarray, torch.Tensor],\
-                'Samples per stratum should be a torch.Tensor or np.ndarray'
-        self._strata = strata
-        self._num_iter = num_iter
-        self._samples_per_stratum = samples_per_stratum
+    def __init__(self, sampler, group_ids, batch_size):
+        if not isinstance(sampler, Sampler):
+            raise ValueError(
+                "sampler should be an instance of "
+                "torch.utils.data.Sampler, but got sampler={}".format(sampler)
+            )
+        self.sampler = sampler
+        self.group_ids = group_ids
+        self.batch_size = batch_size
 
     def __iter__(self):
-        for _ in range(self._num_iter):
-            for i, n in enumerate(self._samples_per_stratum):
-                for _ in range(int(n.item())):
-                    yield self._strata[i][\
-                            torch.randint(high=len(self._strata[i]), size=(1,)).item()].item()
+        buffer_per_group = defaultdict(list)
+        samples_per_group = defaultdict(list)
+
+        num_batches = 0
+        for idx in self.sampler:
+            group_id = self.group_ids[idx]
+            buffer_per_group[group_id].append(idx)
+            samples_per_group[group_id].append(idx)
+            if len(buffer_per_group[group_id]) == self.batch_size:
+                yield buffer_per_group[group_id]
+                num_batches += 1
+                del buffer_per_group[group_id]
+            assert len(buffer_per_group[group_id]) < self.batch_size
+
+        # now we have run out of elements that satisfy
+        # the group criteria, let's return the remaining
+        # elements so that the size of the sampler is
+        # deterministic
+        expected_num_batches = len(self)
+        num_remaining = expected_num_batches - num_batches
+        if num_remaining > 0:
+            # for the remaining batches, take first the buffers with largest number
+            # of elements
+            for group_id, _ in sorted(buffer_per_group.items(),
+                                      key=lambda x: len(x[1]), reverse=True):
+                remaining = self.batch_size - len(buffer_per_group[group_id])
+                samples_from_group_id = _repeat_to_at_least(samples_per_group[group_id], remaining)
+                buffer_per_group[group_id].extend(samples_from_group_id[:remaining])
+                assert len(buffer_per_group[group_id]) == self.batch_size
+                yield buffer_per_group[group_id]
+                num_remaining -= 1
+                if num_remaining == 0:
+                    break
+        assert num_remaining == 0
 
     def __len__(self):
-        return self._num_iter * torch.sum(self._samples_per_stratum)
+        return len(self.sampler) // self.batch_size
 
-# NOTE: THIS CLASS IS DEPRECATED
-class MultiLabelStratifiedSampler(torch.utils.data.Sampler):
-    """
-    Stratified sampling strategy when samples belong to multiple classes
-    
-    Given M strata/classes and indices of samples from each stratum, when there could be
-    potential overlap between  strata/classes, take a number of samples so that all classes
-    have roughly the same number of samples. The number of samples desired for each class
-    is specified in advance. 
+def _quantize(x, bins):
+    bins = copy.deepcopy(bins)
+    bins = sorted(bins)
+    quantized = list(map(lambda y: bisect.bisect_right(bins, y), x))
+    return quantized
 
-    Algorithm:
-        Prepare a counter for each of the stratum/class to record the number of samples. Take
-        samples iteratively. When the number of samples a class has is no larger than the 
-        current iteration number, take a sample for this class. Otherwise, skip the class. The
-        number of iterations is equal to the specified number of samples needed
-
-    Arguments:
-        strata(list of Tensor or ndarray): (M,) strata indices
-        labels(Tensor): (N, M) labels of all samples
-        samples_per_class(int): number of samples taken per class
-    """
-    def __init__(self, strata, labels, samples_per_class):
-        assert len(strata) == labels.shape[1],\
-                'Number of strata {} not equal to number of classes {}'.\
-                format(len(strata), labels.shape[1])
-        assert type(labels) == torch.Tensor,\
-                'Labels should a torch.Tensor or np.ndarray'
-        assert type(samples_per_class) is int,\
-                'Samples per class should be an integer'
-        self._strata = strata
-        self._labels = labels
-        self._samples_per_class = samples_per_class
-        # counter of samples for each class
-        self._counter_per_class = torch.zeros(len(strata))
-        # counter of total samples taken
-        self._counter = None
-
-    def __iter__(self):
-        self._counter = 0
-        self._counter_per_class = torch.zeros_like(self._counter_per_class)
-        for i in range(self._samples_per_class):
-            for j in range(len(self._strata)):
-                if self._counter_per_class[j] > i:
-                    continue
-                else:
-                    ind = self._strata[j][\
-                            (torch.randint(high=len(self._strata[j]), size=(1,))).item()].item()
-                    self._counter += 1
-                    self._counter_per_class[torch.nonzero(self._labels[ind, :])[:, 0]] += 1
-                    yield ind
-
-
-    def __len__(self):
-        if self._counter == None:
-            raise NotImplementedError('Method __len__() not available before initializing a generator')
-        else:
-            return self._counter
-
-    @property
-    def counter(self):
-        """Number of samples taken from each class"""
-        return self._counter_per_class
+def create_aspect_ratio_groups(aspect_ratios, k=0, verbal=True):
+    bins = (2 ** np.linspace(-1, 1, 2 * k + 1)).tolist() if k > 0 else [1.0]
+    groups = _quantize(aspect_ratios, bins)
+    # count number of elements per group
+    counts = np.unique(groups, return_counts=True)[1]
+    fbins = [0] + bins + [np.inf]
+    if verbal:
+        print("Using {} as bins for aspect ratio quantization".format(fbins))
+        print("Count of instances per bin: {}".format(counts))
+    return groups
