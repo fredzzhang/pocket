@@ -157,11 +157,11 @@ class DistributedLearningEngine(State):
         self._train_loader.sampler.set_epoch(self._state.epoch)
 
     def _on_end_epoch(self):
+        if self._state.lr_scheduler is not None:
+            self._state.lr_scheduler.step()
         # Save checkpoint in the master process
         if self._rank == 0:
             self.save_checkpoint()
-        if self._state.lr_scheduler is not None:
-            self._state.lr_scheduler.step()
 
     def _on_start_iteration(self):
         self._state.iteration += 1
