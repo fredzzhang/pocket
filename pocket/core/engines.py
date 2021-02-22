@@ -184,9 +184,9 @@ class LearningEngine(State):
         self._state.epoch += 1
 
     def _on_end_epoch(self):
-        self.save_checkpoint()
         if self._state.lr_scheduler is not None:
             self._state.lr_scheduler.step()
+        self.save_checkpoint()
 
     def _on_start_iteration(self):
         self._state.iteration += 1
