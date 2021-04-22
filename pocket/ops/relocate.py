@@ -12,7 +12,7 @@ import torch
 from torch import Tensor
 from typing import Optional, Union, List, Tuple, Dict, TypeVar
 
-GenericTensor = TypeVar('GenericTensor', Tensor, List[Tensor], Tuple[Tensor], Dict[str, Tensor])
+GenericTensor = TypeVar('GenericTensor', Tensor, List[Tensor], Tuple[Tensor, ...], Dict[str, Tensor])
 
 def relocate_to_cpu(x: GenericTensor) -> GenericTensor:
     """Relocate data to cpu recursively"""
