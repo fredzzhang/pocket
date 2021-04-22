@@ -12,7 +12,7 @@ import torch
 from torch import Tensor
 from typing import Optional, Union, List, Tuple, Dict, TypeVar
 
-GenericTensor = TypeVar('GenericTensor', Tensor, List[Tensor], Tuple[Tensor], Dict[Tensor])
+GenericTensor = TypeVar('GenericTensor', Tensor, List[Tensor], Tuple[Tensor], Dict[str, Tensor])
 
 def relocate_to_cpu(x: GenericTensor) -> GenericTensor:
     """Relocate data to cpu recursively"""
@@ -33,7 +33,7 @@ def relocate_to_cpu(x: GenericTensor) -> GenericTensor:
 
 def relocate_to_cuda(
         x: GenericTensor,
-        device: Optional[torch.device, int] = None,
+        device: Optional[Union[torch.device, int]] = None,
         **kwargs
     ) -> GenericTensor:
     """
@@ -70,7 +70,7 @@ def relocate_to_cuda(
 
 def relocate_to_device(
         x: GenericTensor,
-        device: Optional[torch.device, str, int] = None,
+        device: Optional[Union[torch.device, str, int]] = None,
         **kwargs
     ) -> GenericTensor:
     """
