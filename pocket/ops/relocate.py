@@ -9,9 +9,14 @@ Australian Centre for Robotic Vision
 
 import torch
 
-def relocate_to_cpu(x):
+from torch import Tensor
+from typing import Optional, Union, List, Tuple, Dict, TypeVar
+
+GenericTensor = TypeVar('GenericTensor', Tensor, List[Tensor], Tuple[Tensor], Dict[Tensor])
+
+def relocate_to_cpu(x: GenericTensor) -> GenericTensor:
     """Relocate data to cpu recursively"""
-    if isinstance(x, torch.Tensor):
+    if isinstance(x, Tensor):
         return x.cpu()
     elif isinstance(x, list):
         return [relocate_to_cpu(item) for item in x]
@@ -24,14 +29,27 @@ def relocate_to_cpu(x):
     else:
         raise TypeError('Unsupported type of data {}'.format(type(x)))
 
-def relocate_to_cuda(x, device=None, **kwargs):
+def relocate_to_cuda(
+        x: GenericTensor,
+        device: Optional[torch.device, int] = None,
+        **kwargs
+    ) -> GenericTensor:
     """
     Relocate data to CUDA recursively
     
-    Arguments:
-        x(Tensor, list, tuple or dict)
-        device(torch.device or int)
-        kwargs(dict): Refer to torch.Tensor.cuda() for keyworded arguments
+    Parameters:
+    -----------
+    x: Tensor, List[Tensor], Tuple[Tensor] or Dict[Tensor]
+        Generic tensor data to be relocated
+    device: torch.device or int
+        Destination device
+    kwargs: dict
+        Refer to torch.Tensor.cuda() for keyworded arguments
+
+    Returns:
+    --------
+    Tensor, List[Tensor], Tuple[Tensor] or Dict[Tensor]
+        Relocated tensor data
     """
     if isinstance(x, torch.Tensor):
         return x.cuda(device, **kwargs)
@@ -46,14 +64,27 @@ def relocate_to_cuda(x, device=None, **kwargs):
     else:
         raise TypeError('Unsupported type of data {}'.format(type(x)))
 
-def relocate_to_device(x, device, **kwargs):
+def relocate_to_device(
+        x: GenericTensor,
+        device: Optional[torch.device, str, int] = None,
+        **kwargs
+    ) -> GenericTensor:
     """
     Relocate data to specified device recursively
+    
+    Parameters:
+    -----------
+    x: Tensor, List[Tensor], Tuple[Tensor] or Dict[Tensor]
+        Generic tensor data to be relocated
+    device: torch.device, str or int
+        Destination device
+    kwargs: dict
+        Refer to torch.Tensor.to() for keyworded arguments
 
-    Arguments:
-        x(Tensor, list, tuple or dict)
-        device(torch.device, str or int)
-        kwargs(dict): Refer to torch.Tensor.to() for keyworded arguments
+    Returns:
+    --------
+    Tensor, List[Tensor], Tuple[Tensor] or Dict[Tensor]
+        Relocated tensor data
     """
     if isinstance(x, torch.Tensor):
         return x.to(device, **kwargs)
