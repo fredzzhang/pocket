@@ -18,6 +18,8 @@ def relocate_to_cpu(x: GenericTensor) -> GenericTensor:
     """Relocate data to cpu recursively"""
     if isinstance(x, Tensor):
         return x.cpu()
+    elif x is None:
+        return x
     elif isinstance(x, list):
         return [relocate_to_cpu(item) for item in x]
     elif isinstance(x, tuple):
@@ -53,6 +55,8 @@ def relocate_to_cuda(
     """
     if isinstance(x, torch.Tensor):
         return x.cuda(device, **kwargs)
+    elif x is None:
+        return x
     elif isinstance(x, list):
         return [relocate_to_cuda(item, device, **kwargs) for item in x]
     elif isinstance(x, tuple):
@@ -88,6 +92,8 @@ def relocate_to_device(
     """
     if isinstance(x, torch.Tensor):
         return x.to(device, **kwargs)
+    elif x is None:
+        return x
     elif isinstance(x, list):
         return [relocate_to_device(item, device, **kwargs) for item in x]
     elif isinstance(x, tuple):
