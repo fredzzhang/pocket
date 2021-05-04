@@ -9,7 +9,7 @@ Australian Centre for Robotic Vision
 
 import torch
 
-from typing import Tuple
+from typing import Tuple, Optional
 from torch import FloatTensor, LongTensor
 
 from ..ops import box_iou
@@ -48,12 +48,17 @@ class BoxAssociation:
         """Compute intersection over union"""
         return box_iou(boxes_1, boxes_2, encoding=self.encoding)
 
-    def __call__(self, gt_boxes: FloatTensor, det_boxes: FloatTensor, scores: FloatTensor) -> FloatTensor:
+    def __call__(self,
+        gt_boxes: FloatTensor,
+        det_boxes: FloatTensor,
+        scores: Optional[FloatTensor] = None
+    ) -> FloatTensor:
         """
         Arguments:
             gt_boxes(FloatTensor[N, 4]): Ground truth bounding boxes in (x1, y1, x2, y2) format
             det_boxes(FloatTensor[M, 4]): Detected bounding boxes in (x1, y1, x2, y2) format
-            scores(FloatTensor[M]): Confidence scores for each detection
+            scores(FloatTensor[M]): Confidence scores for each detection. If left as None, the
+                highest IoU will be used to rank duplicated detections.
         Returns:
             labels(FloatTensor[M]): Binary labels indicating true positive or not
         """
@@ -63,6 +68,9 @@ class BoxAssociation:
         max_iou, max_idx = iou.max(0)
         self._max_iou = max_iou
         self._max_idx = max_idx
+
+        if scores is None:
+            scores = max_iou
 
         # Assign each detection to the ground truth with highest IoU
         match = torch.zeros_like(iou)
