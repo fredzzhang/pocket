@@ -237,3 +237,133 @@ class FeedFowardNetwork(nn.Module):
         y = self.dropout(y)
         x = self.norm(x + y)
         return x
+
+class TransformerEncoderLayer(nn.Module):
+    """
+    Transformer encoder layer
+
+    Parameters:
+    -----------
+        hidden_size: int, default: 512
+            Size of the hidden state embeddings
+        intermediate-size: int, default: 2048
+            Size of the intermediate embeddings
+        num_heads: int, default: 8
+            Number of heads
+        dropout_prob: float, default: 0.1
+            Dropout probability for attention weights
+        return_weights: bool, default: False
+            If True, return the self attention weights
+    """
+    def __init__(self,
+        hidden_size: int = 512,
+        intermediate_size: int = 2048,
+        num_heads: int = 8,
+        dropout_prob: float = 0.1,
+        return_weights: bool = False
+    ) -> None:
+        super().__init__()
+        self.attention = SelfAttentionLayer(
+            hidden_size=hidden_size,
+            num_heads=num_heads,
+            dropout_prob=dropout_prob,
+            return_weights=return_weights
+        )
+        self.ffn = FeedFowardNetwork(
+            hidden_size=hidden_size,
+            intermediate_size=intermediate_size,
+            dropout_prob=dropout_prob
+        )
+
+    def forward(self,
+        x: Tensor, attn_mask: Optional[Tensor] = None
+    ) -> Tuple[Tensor, Optional[Tensor]]:
+        x, attn_data = self.attention(x, attn_mask)
+        x = self.ffn(x)
+        return x, attn_data
+
+class TransformerEncoder(nn.Module):
+    """
+    Transformer encoder
+
+    Parameters:
+    -----------
+        hidden_size: int, default: 512
+            Size of the hidden state embeddings
+        intermediate-size: int, default: 2048
+            Size of the intermediate embeddings
+        num_heads: int, default: 8
+            Number of heads
+        num_layers: int, default: 6
+            Number of encoder layers
+        dropout_prob: float, default: 0.1
+            Dropout probability for attention weights
+        return_weights: bool, default: False
+            If True, return the self attention weights
+    """
+    def __init__(self,
+        hidden_size: int = 512,
+        intermediate_size: int = 2048,
+        num_heads: int = 8,
+        num_layers: int = 6,
+        dropout_prob: float = 0.1,
+        return_weights: bool = False
+    ) -> None:
+        super().__init__()
+        self.layers = nn.ModuleList([
+            TransformerEncoderLayer(
+                hidden_size=hidden_size,
+                intermediate_size=intermediate_size,
+                num_heads=num_heads,
+                dropout_prob=dropout_prob,
+                return_weights=return_weights
+            ) for _ in range(num_layers)
+        ])
+        self.num_layers = num_layers
+        self.return_weights = return_weights
+
+    def forward(self,
+        x: Tensor, keep_history: bool = False,
+        attn_mask: Optional[Union[Tensor, List[Tensor]]] = None
+    ) -> Tuple[Tensor, List[Tensor], List[Tensor]]:
+        """
+        Parameters:
+        -----------
+        x: Tensor
+            (N, K)  K-dimensional embeddings for N instances
+        keep_history: bool
+            If True, return outputs from all layers
+        attn_mask: Tensor or List[Tensor], optional
+            (N, N) Binary attention mask. When provided as a list of tensors,
+            each tensor correspond to the mask for one layer. When provided as
+            a single tensor, the mask will be used for all layers.
+
+        Returns:
+        --------
+        x: Tensor
+            (N, K) Updated embeddings
+        history: List[Tensor]
+            If required, return a list of outputs from each layer, otherwise
+            return an empty list
+        weights: List[Tensor]
+            If required, return a list of self attention weights from each layer.
+            Otherwise return an empty list
+        """
+        if attn_mask is None:
+            masks = [None for _ in range(self.num_layers)]
+        elif isinstance(attn_mask, Tensor):
+            masks = [attn_mask.unsqueeze(0) for _ in range(self.num_layers)]
+        else:
+            masks = [m.unsqueeze(0) for m in attn_mask]
+
+        history = []
+        weights = []
+        for i, layer in enumerate(self.layers):
+            x, w = layer(x, attn_mask=masks[i])
+            if keep_history:
+                history.append(x)
+            if self.return_weights:
+                weights.append(w)
+
+        return x, history, weights
+
