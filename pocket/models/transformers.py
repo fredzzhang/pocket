@@ -205,3 +205,35 @@ class SelfAttentionLayer(nn.Module):
         m, attn_data = self.attention(x, attn_mask)
         x = self.output(m, x)
         return x, attn_data
+
+class FeedFowardNetwork(nn.Module):
+    """
+    Position-wise feed-forward networks succeeding the attention layer 
+
+    Parameters:
+    -----------
+        hidden_size: int, default: 512
+            Size of the hidden state embeddings
+        intermediate-size: int, default: 2048
+            Size of the intermediate embeddings
+        dropout_prob: float, default: 0.1
+            Dropout probability for attention weights
+    """
+    def __init__(self,
+        hidden_size: int = 512,
+        intermediate_size: int = 2048,
+        dropout_prob: float = 0.1
+    ) -> None:
+        super().__init__()
+        self.ffn = nn.Sequential(
+            nn.Linear(hidden_size, intermediate_size),
+            nn.GELU(),
+            nn.Linear(intermediate_size, hidden_size)
+        )
+        self.dropout = nn.Dropout(dropout_prob)
+        self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
+    def forward(self, x: Tensor) -> Tensor:
+        y = self.ffn(x)
+        y = self.dropout(y)
+        x = self.norm(x + y)
+        return x
