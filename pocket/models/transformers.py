@@ -21,14 +21,14 @@ class SelfAttention(nn.Module):
 
     Parameters:
     -----------
-        hidden_size: int, default: 512
-            Size of the hidden state embeddings
-        num_heads: int, default: 8
-            Number of heads
-        dropout_prob: float, default: 0.1
-            Dropout probability for attention weights
-        return_weights: bool, default: False
-            If True, return the self attention weights
+    hidden_size: int, default: 512
+        Size of the hidden state embeddings
+    num_heads: int, default: 8
+        Number of heads
+    dropout_prob: float, default: 0.1
+        Dropout probability for attention weights
+    return_weights: bool, default: False
+        If True, return the self attention weights
     """
     def __init__(self,
         hidden_size: int = 512,
@@ -121,10 +121,10 @@ class SelfAttentionOutput(nn.Module):
 
     Parameters:
     -----------
-        hidden_size: int, default: 512
-            Size of the hidden state embeddings
-        dropout_prob: float, default: 0.1
-            Dropout probability for attention weights
+    hidden_size: int, default: 512
+        Size of the hidden state embeddings
+    dropout_prob: float, default: 0.1
+        Dropout probability for attention weights
     """
     def __init__(self,
         hidden_size: int = 512,
@@ -160,14 +160,14 @@ class SelfAttentionLayer(nn.Module):
 
     Parameters:
     -----------
-        hidden_size: int, default: 512
-            Size of the hidden state embeddings
-        num_heads: int, default: 8
-            Number of heads
-        dropout_prob: float, default: 0.1
-            Dropout probability for attention weights
-        return_weights: bool, default: False
-            If True, return the self attention weights
+    hidden_size: int, default: 512
+        Size of the hidden state embeddings
+    num_heads: int, default: 8
+        Number of heads
+    dropout_prob: float, default: 0.1
+        Dropout probability for attention weights
+    return_weights: bool, default: False
+        If True, return the self attention weights
     """
     def __init__(self,
         hidden_size: int = 512,
@@ -212,12 +212,12 @@ class FeedFowardNetwork(nn.Module):
 
     Parameters:
     -----------
-        hidden_size: int, default: 512
-            Size of the hidden state embeddings
-        intermediate-size: int, default: 2048
-            Size of the intermediate embeddings
-        dropout_prob: float, default: 0.1
-            Dropout probability for attention weights
+    hidden_size: int, default: 512
+        Size of the hidden state embeddings
+    intermediate-size: int, default: 2048
+        Size of the intermediate embeddings
+    dropout_prob: float, default: 0.1
+        Dropout probability for attention weights
     """
     def __init__(self,
         hidden_size: int = 512,
@@ -244,16 +244,16 @@ class TransformerEncoderLayer(nn.Module):
 
     Parameters:
     -----------
-        hidden_size: int, default: 512
-            Size of the hidden state embeddings
-        intermediate-size: int, default: 2048
-            Size of the intermediate embeddings
-        num_heads: int, default: 8
-            Number of heads
-        dropout_prob: float, default: 0.1
-            Dropout probability for attention weights
-        return_weights: bool, default: False
-            If True, return the self attention weights
+    hidden_size: int, default: 512
+        Size of the hidden state embeddings
+    intermediate-size: int, default: 2048
+        Size of the intermediate embeddings
+    num_heads: int, default: 8
+        Number of heads
+    dropout_prob: float, default: 0.1
+        Dropout probability for attention weights
+    return_weights: bool, default: False
+        If True, return the self attention weights
     """
     def __init__(self,
         hidden_size: int = 512,
@@ -288,18 +288,18 @@ class TransformerEncoder(nn.Module):
 
     Parameters:
     -----------
-        hidden_size: int, default: 512
-            Size of the hidden state embeddings
-        intermediate-size: int, default: 2048
-            Size of the intermediate embeddings
-        num_heads: int, default: 8
-            Number of heads
-        num_layers: int, default: 6
-            Number of encoder layers
-        dropout_prob: float, default: 0.1
-            Dropout probability for attention weights
-        return_weights: bool, default: False
-            If True, return the self attention weights
+    hidden_size: int, default: 512
+        Size of the hidden state embeddings
+    intermediate-size: int, default: 2048
+        Size of the intermediate embeddings
+    num_heads: int, default: 8
+        Number of heads
+    num_layers: int, default: 6
+        Number of encoder layers
+    dropout_prob: float, default: 0.1
+        Dropout probability for attention weights
+    return_weights: bool, default: False
+        If True, return the self attention weights
     """
     def __init__(self,
         hidden_size: int = 512,
@@ -367,3 +367,111 @@ class TransformerEncoder(nn.Module):
 
         return x, history, weights
 
+class CrossAttention(SelfAttention):
+    """Cross attention layer that computes one-directional messages"""
+    def forward(self,
+        x: Tensor, y: Tensor,
+        attn_mask: Optional[Tensor]
+    ) -> Tuple[Tensor, Optional[Tensor]]:
+        """
+        Parameters:
+        -----------
+        x: Tensor
+            (N, K) K-dimensional embeddings for N receiving nodes
+        y: Tensor
+            (M, K) K-dimensional embeddings for M sending nodes
+        attn_mask: Tensor, optional
+            (1, M, N) Binary attention mask
+
+        Returns:
+        --------
+        m_r: Tensor
+            (N, K) K-dimensional weighted messages (values) for N instances
+        attn_data: Tensor, Optional
+            If required, return self attention weights. Otherwise return None.
+        """
+        q = self.query(x)
+        k = self.key(y)
+        v = self.value(y)
+
+        q_r = self.reshape(q)
+        k_r = self.reshape(k)
+        v_r = self.reshape(v)
+
+        # Compute cross attention weights
+        weights = torch.matmul(q_r, k_r.transpose(-1, -2))
+        weights = weights / math.sqrt(self.sub_hidden_size)
+        # Zero out post-softmax probabilities according to the mask
+        if attn_mask is not None:
+            weights = weights.masked_fill(attn_mask == 0, -1e9)
+        # Normalise the attention weights
+        weights = F.softmax(weights, dim=-1)
+
+        # Compute weighted messages
+        m = torch.matmul(weights, v_r)
+        # Permute and reshape
+        m_p = m.permute(1, 0, 2).contiguous()
+        new_m_shape = m_p.size()[:-2] + (self.hidden_size,)
+        m_r = m_p.view(*new_m_shape)
+
+        if self.return_weights:
+            attn_data = weights
+        else:
+            attn_data = None
+
+        return m_r, attn_data
+
+class CrossAttentionLayer(nn.Module):
+    """
+    Multi-head cross attention layer with update
+
+    Parameters:
+    -----------
+    hidden_size: int, default: 512
+        Size of the hidden state embeddings
+    num_heads: int, default: 8
+        Number of heads
+    dropout_prob: float, default: 0.1
+        Dropout probability for attention weights
+    return_weights: bool, default: False
+        If True, return the self attention weights
+    """
+    def __init__(self,
+        hidden_size: int = 512,
+        num_heads: int = 8,
+        dropout_prob: float = 0.1,
+        return_weights: bool = False
+    ) -> None:
+        super().__init__()
+        self.attention = CrossAttention(
+            hidden_size=hidden_size, num_heads=num_heads,
+            dropout_prob=dropout_prob, return_weights=return_weights
+        )
+        self.output = SelfAttentionOutput(
+            hidden_size=hidden_size, dropout_prob=dropout_prob
+        )
+
+    def forward(self,
+        x: Tensor, y: Tensor,
+        attn_mask: Optional[Tensor]
+    ) -> Tuple[Tensor, Optional[Tensor]]:
+        """
+        Parameters:
+        -----------
+        x: Tensor
+            (N, K) K-dimensional embeddings for N receiving nodes
+        y: Tensor
+            (M, K) K-dimensional embeddings for M sending nodes
+        attn_mask: Tensor, optional
+            (1, M, N) Binary attention mask
+
+        Returns:
+        --------
+        m_r: Tensor
+            (N, K) K-dimensional weighted messages (values) for N instances
+        attn_data: Tensor, Optional
+            If required, return self attention weights. Otherwise return None.
+        """
+        m, attn_data = self.attention(x, y, attn_mask)
+        x = self.output(m, x)
+        return x, attn_data
