@@ -371,7 +371,7 @@ class CrossAttention(SelfAttention):
     """Cross attention layer that computes one-directional messages"""
     def forward(self,
         x: Tensor, y: Tensor,
-        attn_mask: Optional[Tensor]
+        attn_mask: Optional[Tensor] = None
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """
         Parameters:
@@ -453,7 +453,7 @@ class CrossAttentionLayer(nn.Module):
 
     def forward(self,
         x: Tensor, y: Tensor,
-        attn_mask: Optional[Tensor]
+        attn_mask: Optional[Tensor] = None
     ) -> Tuple[Tensor, Optional[Tensor]]:
         """
         Parameters:
