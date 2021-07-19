@@ -205,21 +205,11 @@ class DistributedLearningEngine(State):
 
     def save_checkpoint(self) -> None:
         """Save a checkpoint of the model state"""
-        # Make a copy of the network parameters and relocate to cpu
-        model_state_dict = self._state.net.module.state_dict().copy()
-        for k in model_state_dict:
-            model_state_dict[k] = model_state_dict[k].cpu()
-        # Make a copy of the optimizer and relocate to cpu
-        optim_copy = copy.deepcopy(self._state.optimizer)
-        for state in optim_copy.state.values():
-            for k, v in state.items():
-                if isinstance(v, torch.Tensor):
-                    state[k] = v.cpu()
         checkpoint = {
             'iteration': self._state.iteration,
             'epoch': self._state.epoch,
-            'model_state_dict': model_state_dict,
-            'optim_state_dict': optim_copy.state_dict(),
+            'model_state_dict': self._state.net.module.state_dict(),
+            'optim_state_dict': self._state.optimizer.state_dict(),
             'scaler_state_dict': self._state.scaler.state_dict()
         }
         if self._state.lr_scheduler is not None:
