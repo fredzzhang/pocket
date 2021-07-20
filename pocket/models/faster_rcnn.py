@@ -50,6 +50,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from collections import OrderedDict
 
 import torch
+import warnings
 from torch import nn
 from torchvision import models
 from torchvision.ops import misc as misc_nn_ops
@@ -118,7 +119,23 @@ KEEP = [
 ]
 KEEPX4 = torch.arange(4).repeat(81, 1) + torch.as_tensor(KEEP).unsqueeze(1) * 4
 
-def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
+def _validate_trainable_layers(pretrained, trainable_backbone_layers, max_value, default_value):
+    # dont freeze any layers if pretrained model or backbone is not used
+    if not pretrained:
+        if trainable_backbone_layers is not None:
+            warnings.warn(
+                "Changing trainable_backbone_layers has not effect if "
+                "neither pretrained nor pretrained_backbone have been set to True, "
+                "falling back to trainable_backbone_layers={} so that all layers are trainable".format(max_value))
+        trainable_backbone_layers = max_value
+
+    # by default freeze first blocks
+    if trainable_backbone_layers is None:
+        trainable_backbone_layers = default_value
+    assert 0 <= trainable_backbone_layers <= max_value
+    return trainable_backbone_layers
+
+def fasterrcnn_resnet_fpn(backbone_name, pretrained=False, trainable_backbone_layers=None,
         num_classes=81, pretrained_backbone=True, **kwargs):
     """
     Construct Faster R-CNN with a ResNet-FPN backbone
@@ -128,12 +145,17 @@ def fasterrcnn_resnet_fpn(backbone_name, pretrained=False,
             Refer to torchvision.models.resnet.__dict__ for details
         pretrained(bool, optional): If True, load weights for the detector
             pretrained on MS COCO. Only ResNet50-FPN is supported for the moment.
+        trainable_backbone_layers(int, optional): Number of trainable (not frozen)
+            resnet layers starting from final block.
         num_classes(int, optional): Number of target classes.
         pretrained_backbone(bool, optional): If True, load weights for backbone
             pre-trained on ImageNet
 
         Refer to torchvision.models.detection.FasterRCNN for kwargs
     """
+    trainable_backbone_layers = _validate_trainable_layers(
+        pretrained or pretrained_backbone, trainable_backbone_layers, 5, 3)
+
     if pretrained and backbone_name == 'resnet50':
         # no need to download the backbone if pretrained is set
         pretrained_backbone = False
