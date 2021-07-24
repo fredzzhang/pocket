@@ -8,7 +8,11 @@ Australian Centre for Robotic Vision
 """
 
 import torch
+import warnings
+
 from torch import nn
+from torch.nn import functional as F
+from typing import Callable, List, Optional
 
 class MultiLayerPerceptron(nn.Module):
     """
@@ -20,7 +24,7 @@ class MultiLayerPerceptron(nn.Module):
         bias(bool or list[bool], optional): If True, use bias terms in linear layers. 
             If given a bool variable, apply it to all linear layers, otherwise apply 
             to individual linear layer in order
-        use_norm(bool, optional): If True, use normalization layer before activation (ReLu)
+        use_norm(bool, optional): If True, use normalization layer before activation (ReLU)
         norm_layer(callable, optional): Normalization layer to be used
 
     Example:
@@ -56,7 +60,7 @@ class MultiLayerPerceptron(nn.Module):
             else norm_layer
 
         if not use_norm and norm_layer is not None:
-            print('WARNING: The passed normalization layer is not used')
+            warnings.warn("WARNING: The passed normalization layer is not used.")
 
         layers = [nn.Linear(dimension[0], dimension[1], self._bias[0])]
         for i in range(1, self._num_layer):
@@ -93,3 +97,63 @@ class MultiLayerPerceptron(nn.Module):
             return torch.zeros(0, self._dimension[-1])
         else:
             return self.layers(x)
+
+class TwoSidedReLU(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self, x):
+        return torch.cat([F.relu(x), F.relu(-x)], dim=-1)
+
+class MultiLayerPerceptronX(MultiLayerPerceptron):
+    """
+    Multilayer perceptron with two-sided ReLU.
+
+    Parameters:
+    -----------
+    dimension: List[int]
+        Dimension of layers in the MLP, starting from input layer. The length has to be
+        at least 2. Due to the use of two-sided ReLUs, each dimension should be an even number.
+    bias: bool or List[bool]
+        If True, use bias terms in linear layers.
+    use_norm: bool, optional
+        If True, use normalization layer before activation (ReLU)
+    norm_layer: Callable, optional
+        Normalization layer to be used. If left as None, BatchNorm will be used.
+    """
+    def __init__(self,
+        dimension: List[int],
+        bias: bool = True,
+        use_norm: bool = True,
+        norm_layer: Optional[Callable] = None
+    ) -> None:
+        for i, d in enumerate(dimension):
+            if d % 2 != 0:
+                warnings.warn("Provided dimensions contain odd numbers. These will be corrected.")
+                dimension[i] = d + 1
+        # Invoke the __init__ method of torch.nn.Module
+        super(MultiLayerPerceptron, self).__init__()
+
+        dims_in = dimension[:-1]
+        dims_out = [int(d / 2) for d in dimension[1:-1]] + [dimension[-1],]
+
+        self._dimension = dimension
+        self._num_layer = len(dimension) - 1
+        self._bias = bias if type(bias) is list \
+            else [bias for _ in range(self._num_layer)]
+        self._use_norm = use_norm
+        self._norm_layer = nn.BatchNorm1d if norm_layer is None \
+            else norm_layer
+
+        if not use_norm and norm_layer is not None:
+            warnings.warn("WARNING: The passed normalization layer is not used.")
+
+        layers = [nn.Linear(dims_in[0], dims_out[0], self._bias[0])]
+        for i in range(1, self._num_layer):
+            if use_norm: layers.append(self._norm_layer(dims_out[i - 1]))
+            layers.append(TwoSidedReLU())
+            layers.append(nn.Linear(
+                dims_in[i],
+                dims_out[i],
+                self._bias[i]
+            ))
+        self.layers = nn.Sequential(*layers)
