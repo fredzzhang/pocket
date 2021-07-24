@@ -232,7 +232,7 @@ class LearningEngine(State):
             'iteration': self._state.iteration,
             'epoch': self._state.epoch,
             'model_state_dict': model_state_dict,
-            'optim_state_dict': self._state.state_dict(),
+            'optim_state_dict': self._state.optimizer.state_dict(),
             'scaler_state_dict': self._state.scaler.state_dict()
         }
         if self._state.lr_scheduler is not None:
