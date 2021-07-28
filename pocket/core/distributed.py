@@ -76,7 +76,7 @@ class DistributedLearningEngine(State):
         self._use_amp = use_amp
         self._cache_dir = cache_dir
         if not os.path.exists(cache_dir):
-            os.mkdir(cache_dir)
+            os.makedirs(cache_dir)
 
         # Relocate model to designated device
         net.cuda()
