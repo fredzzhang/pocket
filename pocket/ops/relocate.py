@@ -14,7 +14,7 @@ from typing import Optional, Union, List, Tuple, Dict, TypeVar
 
 GenericTensor = TypeVar('GenericTensor', Tensor, List[Tensor], Tuple[Tensor, ...], Dict[str, Tensor])
 
-def relocate_to_cpu(x: GenericTensor) -> GenericTensor:
+def relocate_to_cpu(x: GenericTensor, ignore: bool = False) -> GenericTensor:
     """Relocate data to cpu recursively"""
     if isinstance(x, Tensor):
         return x.cpu()
@@ -28,11 +28,11 @@ def relocate_to_cpu(x: GenericTensor) -> GenericTensor:
         for key in x:
             x[key] = relocate_to_cpu(x[key])
         return x
-    else:
+    elif not ignore:
         raise TypeError('Unsupported type of data {}'.format(type(x)))
 
 def relocate_to_cuda(
-        x: GenericTensor,
+        x: GenericTensor, ignore: bool = False,
         device: Optional[Union[torch.device, int]] = None,
         **kwargs
     ) -> GenericTensor:
@@ -43,6 +43,8 @@ def relocate_to_cuda(
     -----------
     x: Tensor, List[Tensor], Tuple[Tensor] or Dict[Tensor]
         Generic tensor data to be relocated
+    ignore: bool
+        If True, ignore unsupported data type and throw a warning.
     device: torch.device or int
         Destination device
     kwargs: dict
@@ -65,11 +67,11 @@ def relocate_to_cuda(
         for key in x:
             x[key] = relocate_to_cuda(x[key], device, **kwargs)
         return x
-    else:
+    elif not ignore:
         raise TypeError('Unsupported type of data {}'.format(type(x)))
 
 def relocate_to_device(
-        x: GenericTensor,
+        x: GenericTensor, ignore: bool = False,
         device: Optional[Union[torch.device, str, int]] = None,
         **kwargs
     ) -> GenericTensor:
@@ -82,6 +84,8 @@ def relocate_to_device(
         Generic tensor data to be relocated
     device: torch.device, str or int
         Destination device
+    ignore: bool
+        If True, ignore unsupported data type and throw a warning.
     kwargs: dict
         Refer to torch.Tensor.to() for keyworded arguments
 
@@ -102,5 +106,5 @@ def relocate_to_device(
         for key in x:
             x[key] = relocate_to_device(x[key], device, **kwargs)
         return x
-    else:
+    elif not ignore:
         raise TypeError('Unsupported type of data {}'.format(type(x)))
