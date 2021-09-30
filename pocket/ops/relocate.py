@@ -60,12 +60,12 @@ def relocate_to_cuda(
     elif x is None:
         return x
     elif isinstance(x, list):
-        return [relocate_to_cuda(item, device, ignore=ignore, **kwargs) for item in x]
+        return [relocate_to_cuda(item, ignore, device, **kwargs) for item in x]
     elif isinstance(x, tuple):
-        return tuple(relocate_to_cuda(item, device, ignore=ignore, **kwargs) for item in x)
+        return tuple(relocate_to_cuda(item, ignore, device, **kwargs) for item in x)
     elif isinstance(x, dict):
         for key in x:
-            x[key] = relocate_to_cuda(x[key], device, ignore=ignore, **kwargs)
+            x[key] = relocate_to_cuda(x[key], ignore, device, **kwargs)
         return x
     elif not ignore:
         raise TypeError('Unsupported type of data {}'.format(type(x)))
@@ -99,12 +99,12 @@ def relocate_to_device(
     elif x is None:
         return x
     elif isinstance(x, list):
-        return [relocate_to_device(item, device, ignore=ignore, **kwargs) for item in x]
+        return [relocate_to_device(item, ignore, device, **kwargs) for item in x]
     elif isinstance(x, tuple):
-        return tuple(relocate_to_device(item, device, ignore=ignore, **kwargs) for item in x)
+        return tuple(relocate_to_device(item, ignore, device, **kwargs) for item in x)
     elif isinstance(x, dict):
         for key in x:
-            x[key] = relocate_to_device(x[key], device, ignore=ignore, **kwargs)
+            x[key] = relocate_to_device(x[key], ignore, device, **kwargs)
         return x
     elif not ignore:
         raise TypeError('Unsupported type of data {}'.format(type(x)))
