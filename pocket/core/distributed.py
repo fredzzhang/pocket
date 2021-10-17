@@ -11,6 +11,7 @@ import os
 import time
 import copy
 import torch
+from torch._C import Value
 import torch.distributed as dist
 
 from torch.nn import Module
@@ -89,12 +90,7 @@ class DistributedLearningEngine(State):
                     'momentum': 0.9,
                     'weight_decay': 5e-4
             } if optim == 'SGD' else {'lr': 0.001, 'weight_decay': 5e-4}
-        self._state.optimizer = torch.optim.SGD(net_params, **optim_params)\
-            if optim == 'SGD' \
-            else torch.optim.Adam(net_params, **optim_params)
-
-        self._state.net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[self._device])
-
+        self._state.optimizer = eval(f'torch.optim.{optim}')(net_params, **optim_params)
         # Load optimzer state dict if provided
         if optim_state_dict is not None:
             self._state.optimizer.load_state_dict(optim_state_dict)
@@ -103,6 +99,9 @@ class DistributedLearningEngine(State):
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
                         state[k] = v.cuda()
+
+        self._state.net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[self._device])
+
         # Initialise gradient scaler
         self._state.scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
         self._state.epoch = 0
