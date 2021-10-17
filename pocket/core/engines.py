@@ -8,7 +8,6 @@ Australian Centre for Robotic Vision
 """
 
 import os
-import copy
 import time
 import json
 import torch
@@ -121,9 +120,7 @@ class LearningEngine(State):
                     'momentum': 0.9,
                     'weight_decay': 5e-4
             } if optim == 'SGD' else {'lr': 0.001, 'weight_decay': 5e-4}
-        self._state.optimizer = torch.optim.SGD(net_params, **optim_params)\
-            if optim == 'SGD' \
-            else torch.optim.Adam(net_params, **optim_params)
+        self._state.optimizer = eval(f'torch.optim.{optim}')(net_params, **optim_params)
         # Load optimzer state dict if provided
         if optim_state_dict is not None:
             self._state.optimizer.load_state_dict(optim_state_dict)
