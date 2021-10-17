@@ -8,7 +8,6 @@ Australian Centre for Robotic Vision
 """
 
 import os
-import copy
 import time
 import json
 import torch

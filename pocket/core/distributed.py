@@ -9,9 +9,7 @@ Australian Centre for Robotic Vision
 
 import os
 import time
-import copy
 import torch
-from torch._C import Value
 import torch.distributed as dist
 
 from torch.nn import Module
