@@ -146,7 +146,7 @@ class ImageDataset(Dataset):
 
     def load_image(self, path: str) -> Image: 
         """Load an image as PIL.Image"""
-        return Image.open(path)
+        return Image.open(path).convert('RGB')
 
 class DataSubset(Dataset):
     """
