@@ -187,8 +187,8 @@ class LearningEngine(State):
 
     def _on_start_iteration(self):
         self._state.iteration += 1
-        self._state.inputs = relocate_to_device(self._state.inputs, self._device)
-        self._state.targets = relocate_to_device(self._state.targets, self._device)
+        self._state.inputs = relocate_to_device(self._state.inputs, device=self._device)
+        self._state.targets = relocate_to_device(self._state.targets, device=self._device)
 
     def _on_end_iteration(self):
         if self._verbal and self._state.iteration % self._print_interval == 0:
@@ -326,7 +326,7 @@ class MultiClassClassificationEngine(LearningEngine):
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
-            batch = relocate_to_device(batch, self._device)
+            batch = relocate_to_device(batch, device=self._device)
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
@@ -472,7 +472,7 @@ class MultiLabelClassificationEngine(LearningEngine):
         running_loss = NumericalMeter()
         timestamp = time.time()
         for batch in self._val_loader:
-            batch = relocate_to_device(batch, self._device)
+            batch = relocate_to_device(batch, device=self._device)
             with torch.no_grad():
                 output = self._state.net(*batch[:-1])
             loss = self._criterion(output, batch[-1])
