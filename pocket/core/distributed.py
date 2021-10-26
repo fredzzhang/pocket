@@ -43,6 +43,7 @@ class DistributedLearningEngine(State):
         verbal(bool): If True, print statistics every fixed interval
         print_interval(int): Number of iterations to print statistics
         cache_dir(str): Directory to save checkpoints
+        find_unused_parameters(bool): torch.nn.parallel.DistributedDataParallel
     """
     def __init__(self,
             net: Module, criterion: Callable, train_loader: Iterable,
@@ -50,7 +51,8 @@ class DistributedLearningEngine(State):
             optim_params: Optional[dict] = None, optim_state_dict: Optional[dict] = None,
             lr_scheduler: bool = False, lr_sched_params: Optional[dict] = None,
             verbal: bool = True, print_interval: int = 100, use_amp: bool = True,
-            cache_dir: str = './checkpoints'):
+            find_unused_parameters: bool = False, cache_dir: str = './checkpoints'
+        ):
 
         super().__init__()
         if not dist.is_available():
@@ -98,7 +100,10 @@ class DistributedLearningEngine(State):
                     if isinstance(v, torch.Tensor):
                         state[k] = v.cuda()
 
-        self._state.net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[self._device])
+        self._state.net = torch.nn.parallel.DistributedDataParallel(
+            net, device_ids=[self._device],
+            find_unused_parameters=find_unused_parameters
+        )
 
         # Initialise gradient scaler
         self._state.scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
