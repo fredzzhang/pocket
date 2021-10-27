@@ -100,7 +100,7 @@ def batched_pnms(
         Indices of kept box pairs
     """
     if boxes_1.numel() == 0 or boxes_2.numel() == 0:
-        return torch.empty((0,), dtype=torch.int64, device=boxes.device)
+        return torch.empty((0,), dtype=torch.int64, device=boxes_1.device)
     else:
         max_coordinate = torch.max(boxes_1, boxes_2).max()
         offsets = classes.to(boxes_1) * (max_coordinate + torch.tensor(1).to(boxes_1))
