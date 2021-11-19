@@ -206,7 +206,7 @@ class SelfAttentionLayer(nn.Module):
         x = self.output(m, x)
         return x, attn_data
 
-class FeedFowardNetwork(nn.Module):
+class FeedForwardNetwork(nn.Module):
     """
     Position-wise feed-forward networks succeeding the attention layer 
 
@@ -269,7 +269,7 @@ class TransformerEncoderLayer(nn.Module):
             dropout_prob=dropout_prob,
             return_weights=return_weights
         )
-        self.ffn = FeedFowardNetwork(
+        self.ffn = FeedForwardNetwork(
             hidden_size=hidden_size,
             intermediate_size=intermediate_size,
             dropout_prob=dropout_prob
