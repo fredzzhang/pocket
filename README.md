@@ -23,7 +23,7 @@ Pocket is a fairly lightweight library built on the pupular [PyTorch](https://py
 
 Pocket provides a range of engine classes that can perform training and testing with minimum amount of code. The following is a simple demo.
 
-![pocket_demo](https://user-images.githubusercontent.com/11484831/102730290-56742e80-4388-11eb-85a7-c1ad67884ba8.gif)
+![demo](https://user-images.githubusercontent.com/11484831/144946689-b800e42e-2908-4604-934d-32e79396e2f5.gif)
 
 Pocket provides two base classes of engines: __pocket.core.LearningEngine__ and __pocket.core.DistributedLearningEngine__ with the following features:
 - [x] CPU/GPU training
@@ -71,6 +71,7 @@ conda activate pocket
 # Install dependencies
 conda install conda-build
 conda install -c anaconda cloudpickle
+# Adjust cuda toolkit version as needed
 conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
 pip install matplotlib tqdm scipy
 # Install Pocket under any desired directory
@@ -78,7 +79,7 @@ INSTALL_DIR=YOUR_CHOICE
 cd $INSTALL_DIR
 git clone https://github.com/fredzzhang/pocket.git
 conda develop pocket
-# Run an example as a test
+# Run an example as a test (Optional)
 cd pocket/examples
 CUDA_VISIBLE_DEVICES=0 python mnist.py
 ```
