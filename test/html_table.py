@@ -32,10 +32,19 @@ def test_2():
             )
 
     a = pocket.utils.ImageHTMLTable(4,
-            "/Users/Frederic/Desktop/example/class_161",
+            "/Users/fredzzhang/Desktop/example/class_161",
             parser=name_parser, width="75%")
     a()
 
+def test_3():
+    
+    a = pocket.utils.ImageHTMLTable(4,
+        "/Users/fredzzhang/Desktop/tmp",
+        regular_expression="horse*"
+    )
+    a()
+
 if __name__ == '__main__':
-    #test_1()
-    test_2()
+    # test_1()
+    # test_2()
+    test_3()

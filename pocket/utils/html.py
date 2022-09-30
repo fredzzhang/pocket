@@ -8,6 +8,7 @@ Australian Centre for Robotic Vision
 """
 
 import os
+import re
 import numpy as np
 
 from typing import Optional, Iterable, Callable
@@ -92,6 +93,7 @@ class ImageHTMLTable(HTMLTable):
                 parser: Optional[Callable] = None,
                 sorter: Optional[Callable] = None,
                 extension: str = None,
+                regular_expression: str = None,
                 **kwargs) -> None:
         """HTML table of images with captions
 
@@ -101,6 +103,7 @@ class ImageHTMLTable(HTMLTable):
             parser(callable): A parser that formats image names into captions
             sorter(callable): A function that sorts image names into desired order
             extension(str): Format of image files to be collected
+            regular_expression(str): A regular expression to be matched against
             kwargs(dict): Attributes of HTML <img> tag. e.g. {"width": "75%"}
         """
         if parser is None:
@@ -108,7 +111,7 @@ class ImageHTMLTable(HTMLTable):
         if sorter is None:
             sorter = lambda a: range(len(a))
         if extension is None:
-            extension = (".jpg", ".png")
+            extension = (".jpg", ".png", ".jpeg")
 
         # Format attributes of <img> tag
         attr = " ".join(["{}=\"{}\"".format(k, v) for k, v in kwargs.items()])
@@ -116,6 +119,11 @@ class ImageHTMLTable(HTMLTable):
         # Fetch image files with specified format
         files = os.listdir(image_dir); files.sort()
         all_images = [s for s in files if s.endswith(extension)]
+        # Match file names against the provided regular expression
+        if regular_expression is not None:
+            condition = re.compile(regular_expression)
+            all_images = [s for s in all_images if re.match(condition, s)]
+
         # Sort the images by their names
         order = sorter(all_images)
         all_image_paths = [os.path.join(image_dir, all_images[i]) for i in order]
