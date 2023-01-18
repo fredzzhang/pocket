@@ -68,17 +68,12 @@ Anaconda/miniconda is recommended for environment management. Follow the steps b
 # Create conda environment (python>=3.5)
 conda create --name pocket python=3.8
 conda activate pocket
-# Install dependencies
-conda install conda-build
-conda install -c anaconda cloudpickle
-# Adjust cuda toolkit version as needed
+# Install [pytorch](https://pytorch.org/get-started/locally/)>=1.5.1
 conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
 pip install matplotlib tqdm scipy
 # Install Pocket under any desired directory
-INSTALL_DIR=YOUR_CHOICE
-cd $INSTALL_DIR
 git clone https://github.com/fredzzhang/pocket.git
-conda develop pocket
+pip install -e pocket
 # Run an example as a test (Optional)
 cd pocket/examples
 CUDA_VISIBLE_DEVICES=0 python mnist.py
