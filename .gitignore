@@ -13,3 +13,6 @@ build
 # Generated cache
 checkpoints
 data
+
+# Packaging
+*egg-info
