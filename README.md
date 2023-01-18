@@ -68,7 +68,7 @@ Anaconda/miniconda is recommended for environment management. Follow the steps b
 # Create conda environment (python>=3.5)
 conda create --name pocket python=3.8
 conda activate pocket
-# Install [pytorch](https://pytorch.org/get-started/locally/)>=1.5.1
+# Install pytorch>=1.5.1
 conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
 pip install matplotlib tqdm scipy
 # Install Pocket under any desired directory
