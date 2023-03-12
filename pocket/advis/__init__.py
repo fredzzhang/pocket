@@ -15,3 +15,4 @@ except ImportError:
     )
 
 from .colours import *
+from .heatmap import *
