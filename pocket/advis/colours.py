@@ -12,8 +12,14 @@ from matplotlib.colors import LinearSegmentedColormap
 
 __all__ = ["palette", "build_continuous_cmap", "build_preset_cmaps"]
 
-def palette(n, **kwargs):
-    return sns.color_palette(n_colors=n, **kwargs)
+def palette(n, dtype="float", **kwargs):
+    c = sns.color_palette(n_colors=n, **kwargs)
+    if dtype == "float":
+        return c
+    elif dtype == "uint8":
+        return [(int(r * 255), int(g * 255), int(b * 255)) for r, g, b in c]
+    else:
+        raise ValueError(f"Unsupported data type {dtype}.")
 
 def build_continuous_cmap(rgb_x, rgb_v, zero_start=True, alpha_x=None, alpha_v=None, name=None):
     """
