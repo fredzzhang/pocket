@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 from .colours import build_preset_cmaps
 
-def heatmap(image, heatmaps, alpha=.6, c_maps=None, interp_args=None, save_path=None):
+def heatmap(image, heatmaps, ax=None, alpha=.6, c_maps=None, interp_args=None, save_path=None):
     """
     Overlay heatmaps on images and save the result.
 
@@ -24,6 +24,8 @@ def heatmap(image, heatmaps, alpha=.6, c_maps=None, interp_args=None, save_path=
     heatmaps: Tensor
         Heatmap tensors of shape (N, H, W). For N>1, by default, different colour maps will
         be used for each heatmap.
+    ax: SubplotAxes, default: None
+        Axis to plot the image and heatmaps with. If left as None, a new figure will be created.
     alpha: float, default: .6
         Opacity level for the first heatmap. If set to None, the heatmap will be directly overlaid
         onto the image without blending.
@@ -36,6 +38,11 @@ def heatmap(image, heatmaps, alpha=.6, c_maps=None, interp_args=None, save_path=
         will be used.
     save_path: str, default: None
         Path for the saved figure. Note that image file extension should also be included.
+    
+    Returns:
+    --------
+    ax: SubplotAxes
+        Axis the image and heatmaps were plotted with.
     """
     w, h = image.size
     if heatmaps.ndim != 3:
@@ -49,8 +56,9 @@ def heatmap(image, heatmaps, alpha=.6, c_maps=None, interp_args=None, save_path=
         heatmaps = F.interpolate(heatmaps.unsqueeze(0), size=(h, w), **interp_args).squeeze(0)
         heatmaps.clamp_(min=0, max=1)
 
-    plt.imshow(image)
-    ax = plt.gca()
+    if ax is None:
+        ax = plt.gca()
+    ax.imshow(image)
     for i in range(heatmaps.shape[0]):
         hm = heatmaps[i]
         # Set opacity level for the first heatmap only. The rest
@@ -66,6 +74,7 @@ def heatmap(image, heatmaps, alpha=.6, c_maps=None, interp_args=None, save_path=
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
 
-    if save_path is None:
-        save_path = "tmp.png"
-    plt.savefig(save_path, bbox_inches="tight", pad_inches=0)
+    if save_path is not None:
+        plt.savefig(save_path, bbox_inches="tight", pad_inches=0)
+
+    return ax
