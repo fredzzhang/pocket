@@ -50,6 +50,8 @@ def heatmap(image, heatmaps, ax=None, alpha=.6, c_maps=None, interp_args=None, s
 
     if c_maps is None:
         c_maps = build_preset_cmaps(heatmaps.shape[0])
+    elif type(c_maps) is not list:
+        c_maps = [c_maps for _ in range(heatmaps.shape[0])]
     if interp_args is None:
         interp_args = {"mode": "bicubic", "align_corners": True}
     if heatmaps.shape[1:] != torch.Size([h, w]):
