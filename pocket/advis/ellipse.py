@@ -4,6 +4,7 @@ Fred Zhang <frederic.zhang@adelaide.edu.au>
 Australian Institute for Machine Learning
 """
 
+import warnings
 import numpy as np
 import pocket.advis
 import matplotlib.pyplot as plt
@@ -40,8 +41,8 @@ def visualise_one_distribution(x, y, cov, ax=None, n_std=3.0, facecolor='none', 
     ax: AxesSubplot
         The axis that the distribution was plotted with.
     """
-    if cov[0, 1] != cov[1, 0]:
-        raise ValueError(f"The given covariance matrix is not symmetric: {cov}.")
+    if not np.isclose(cov[0, 1], cov[1, 0]):
+        warnings.warn(f"WARNING: The given covariance matrix is not symmetric: {cov}.")
 
     pearson = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
     # Using a special case to obtain the eigenvalues of this
