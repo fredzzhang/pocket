@@ -5,3 +5,4 @@ from .sinkhorn_knopp import *
 from .masks import *
 from .boxes import *
 from .index import *
+from .pca import *
